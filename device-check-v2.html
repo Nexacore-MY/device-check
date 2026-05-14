@@ -1,0 +1,2563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nexacore Device Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Quicksand:wght@400;500;600;700&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --white: #FFFFFF;
+    --ice: #CEF1F2;
+    --teal: #44C0C5;
+    --deep-teal: #117F84;
+    --dark: #06444A;
+    --bg: #F6FBFB;
+    --border: #E0EDED;
+    --text: #06444A;
+    --text-light: #5A8A8D;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --radius: 12px;
+    --radius-pill: 999px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Quicksand', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .section-title, .card-title, .header-title {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--white);
+  }
+
+  /* ===== HEADER ===== */
+  .header {
+    background: var(--dark);
+    color: var(--white);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-logo {
+    width: 36px;
+    height: 36px;
+    background: var(--teal);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--dark);
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+    opacity: 0.6;
+    font-weight: 500;
+    font-family: 'Quicksand', sans-serif;
+  }
+
+  /* ===== PROGRESS ===== */
+  .progress-bar {
+    background: var(--ice);
+    height: 4px;
+    width: 100%;
+  }
+
+  .progress-fill {
+    background: var(--teal);
+    height: 100%;
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    display: none;
+    flex: 1;
+    padding: 24px 20px;
+    animation: fadeIn 0.35s ease;
+  }
+
+  .screen.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== WELCOME ===== */
+  .welcome-hero {
+    text-align: center;
+    padding: 48px 0 32px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .welcome-icon {
+    width: 88px;
+    height: 88px;
+    background: linear-gradient(135deg, var(--teal), var(--deep-teal));
+    border-radius: 24px;
+    margin: 0 auto 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(68,192,197,0.25);
+  }
+
+  .welcome-icon svg {
+    width: 44px;
+    height: 44px;
+    fill: var(--white);
+  }
+
+  .welcome-hero h1 {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    color: var(--dark);
+  }
+
+  .welcome-hero p {
+    color: var(--text-light);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 300px;
+    margin: 0 auto;
+    font-weight: 500;
+  }
+
+  .welcome-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 36px;
+    text-align: left;
+  }
+
+  .welcome-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--ice);
+    border-radius: var(--radius);
+  }
+
+  .welcome-step-num {
+    width: 32px;
+    height: 32px;
+    background: var(--teal);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--white);
+    flex-shrink: 0;
+  }
+
+  .welcome-step-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  .welcome-step-sub {
+    font-size: 12px;
+    color: var(--text-light);
+    font-weight: 500;
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    width: 100%;
+    padding: 16px 24px;
+    border: none;
+    border-radius: var(--radius-pill);
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    letter-spacing: 0.2px;
+  }
+
+  .btn-primary {
+    background: var(--teal);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(68,192,197,0.3);
+  }
+
+  .btn-primary:hover { background: var(--deep-teal); }
+
+  .btn-primary:disabled {
+    background: var(--border);
+    color: var(--text-light);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .btn-secondary {
+    background: var(--ice);
+    color: var(--deep-teal);
+  }
+
+  .btn-success {
+    background: var(--success);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+  }
+
+  .btn-bottom {
+    margin-top: auto;
+    padding-top: 24px;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 24px;
+  }
+
+  .btn-group .btn { flex: 1; }
+
+  /* ===== SECTION HEADINGS ===== */
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+    color: var(--dark);
+  }
+
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 24px;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--dark);
+  }
+
+  .card-desc {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  /* ===== SCANNING SCREEN ===== */
+  .scan-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 0;
+  }
+
+  .scan-ring {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 4px solid var(--ice);
+    border-top-color: var(--teal);
+    animation: spin 1.2s linear infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 32px;
+    position: relative;
+  }
+
+  .scan-ring-inner {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: var(--ice);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .scan-ring-icon { font-size: 40px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .scan-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 8px;
+  }
+
+  .scan-status {
+    font-size: 14px;
+    color: var(--text-light);
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+
+  .scan-checks {
+    width: 100%;
+    max-width: 320px;
+    text-align: left;
+  }
+
+  .scan-check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-light);
+    transition: all 0.3s;
+  }
+
+  .scan-check-item.active { color: var(--deep-teal); font-weight: 600; }
+  .scan-check-item.done { color: var(--success); }
+  .scan-check-item.failed { color: var(--danger); }
+
+  .scan-check-icon {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  /* ===== FORM ===== */
+  .form-group { margin-bottom: 16px; }
+
+  .form-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+    display: block;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .form-input, .form-select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 600;
+    background: var(--white);
+    color: var(--text);
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--teal);
+  }
+
+  .form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%235A8A8D' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+  }
+
+  .form-hint {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  /* ===== DEVICE DETECTED CARD ===== */
+  .detected-card {
+    background: var(--ice);
+    border: 2px solid var(--teal);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+
+  .detected-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--deep-teal);
+    margin-bottom: 4px;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .detected-device {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--dark);
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .detected-specs {
+    font-size: 13px;
+    color: var(--deep-teal);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  .detected-mismatch {
+    background: #FEF3C7;
+    border-color: var(--warning);
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #92400E;
+    font-weight: 600;
+    display: none;
+  }
+
+  /* ===== IMEI SCREENSHOT ===== */
+  .imei-instruction {
+    background: var(--ice);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .imei-instruction-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+
+  .imei-instruction-step:last-child { margin-bottom: 0; }
+
+  .imei-step-num {
+    width: 28px;
+    height: 28px;
+    background: var(--teal);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--white);
+    flex-shrink: 0;
+  }
+
+  .imei-step-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--dark);
+    line-height: 1.5;
+    padding-top: 3px;
+  }
+
+  .imei-step-text strong {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--deep-teal);
+    letter-spacing: 1px;
+  }
+
+  .imei-capture-area {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .imei-capture-area:hover {
+    border-color: var(--teal);
+    background: var(--ice);
+  }
+
+  .imei-capture-area.captured {
+    border-style: solid;
+    border-color: var(--success);
+    padding: 0;
+  }
+
+  .imei-capture-area.captured img {
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+  }
+
+  .imei-capture-icon { font-size: 36px; margin-bottom: 8px; }
+
+  .imei-capture-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--deep-teal);
+  }
+
+  .imei-capture-hint {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ===== PHOTO CAPTURE ===== */
+  .photo-section-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .photo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .photo-slot {
+    aspect-ratio: 3/4;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .photo-slot:hover {
+    border-color: var(--teal);
+    background: var(--ice);
+  }
+
+  .photo-slot.captured {
+    border-style: solid;
+    border-color: var(--success);
+  }
+
+  .photo-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    inset: 0;
+  }
+
+  .photo-slot-icon {
+    font-size: 28px;
+    opacity: 0.6;
+  }
+
+  .photo-slot-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .photo-slot-sub {
+    font-size: 10px;
+    color: var(--teal);
+    font-weight: 600;
+    margin-top: -2px;
+  }
+
+  .photo-slot .photo-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    background: var(--success);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .photo-required-tag {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--teal);
+    color: var(--white);
+  }
+
+  /* ===== MIRROR INSTRUCTIONS ===== */
+  .mirror-guide {
+    background: var(--ice);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .mirror-guide-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 12px;
+  }
+
+  .mirror-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--deep-teal);
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .mirror-step:last-child { margin-bottom: 0; }
+
+  .mirror-step-icon { flex-shrink: 0; font-size: 16px; }
+
+  /* ===== RESULTS ===== */
+  .result-badge {
+    text-align: center;
+    padding: 32px 0 24px;
+  }
+
+  .result-icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+  }
+
+  .result-icon.pass { background: #D1FAE5; color: var(--success); }
+  .result-icon.fail { background: #FEE2E2; color: var(--danger); }
+
+  .result-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--dark);
+  }
+
+  .result-subtitle {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-top: 6px;
+    font-weight: 500;
+    line-height: 1.5;
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-row:last-child { border-bottom: none; }
+
+  .result-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .result-row-icon { font-size: 18px; }
+
+  .result-row-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  .result-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: 0.5px;
+  }
+
+  .result-tag.pass { background: #D1FAE5; color: #065F46; }
+  .result-tag.fail { background: #FEE2E2; color: #991B1B; }
+  .result-tag.warn { background: #FEF3C7; color: #92400E; }
+  .result-tag.pending { background: var(--ice); color: var(--deep-teal); }
+
+  .ref-id {
+    text-align: center;
+    padding: 16px;
+    background: var(--ice);
+    border-radius: var(--radius);
+    margin-top: 16px;
+  }
+
+  .ref-id-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--deep-teal);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .ref-id-value {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--dark);
+    letter-spacing: 2px;
+  }
+
+  .timestamp {
+    font-size: 12px;
+    color: var(--text-light);
+    text-align: center;
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  /* ===== STAGE 2 BANNER ===== */
+  .stage-banner {
+    background: var(--ice);
+    border: 2px solid var(--teal);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .stage-banner-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 4px;
+  }
+
+  .stage-banner-desc {
+    font-size: 13px;
+    color: var(--deep-teal);
+    font-weight: 500;
+  }
+
+  .stage-banner-ref {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--dark);
+    margin-top: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* ===== PERMISSION PROMPT ===== */
+  .permission-prompt {
+    background: var(--ice);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  .permission-prompt p {
+    font-size: 13px;
+    color: var(--deep-teal);
+    font-weight: 500;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  /* ===== HIDDEN ===== */
+  .hidden-input { display: none; }
+
+  /* ===== VERIFICATION SPINNER ===== */
+  .verify-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 0;
+  }
+
+  .verify-ring {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 4px solid var(--ice);
+    border-top-color: var(--teal);
+    animation: spin 1.2s linear infinite;
+    margin-bottom: 24px;
+  }
+
+  /* ===== TRACE TEST ===== */
+  .trace-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    max-height: 55vh;
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    overflow: hidden;
+    touch-action: none;
+    background: var(--bg);
+    margin-bottom: 16px;
+  }
+
+  .trace-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .trace-zone {
+    border: 1px dashed var(--border);
+    transition: background 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .trace-zone.hit {
+    background: rgba(68, 192, 197, 0.2);
+    border-color: var(--teal);
+  }
+
+  .trace-zone.hit::after {
+    content: '✓';
+    color: var(--teal);
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .trace-zone.center {
+    border-style: dotted;
+    opacity: 0.4;
+  }
+
+  .trace-zone.center.hit {
+    opacity: 1;
+  }
+
+  .trace-instruction {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-light);
+    font-size: 14px;
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .trace-finger {
+    font-size: 32px;
+    margin-bottom: 8px;
+    animation: tracePulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes tracePulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+  }
+
+  .trace-progress {
+    margin-bottom: 16px;
+  }
+
+  .trace-progress-label {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 6px;
+  }
+
+  .trace-progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .trace-progress-fill {
+    height: 100%;
+    background: var(--teal);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo">N</div>
+    <div>
+      <div class="header-title">Device Check</div>
+      <div class="header-subtitle">by Nexacore</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <!-- SCREEN 0: WELCOME -->
+  <div class="screen active" id="screen-0">
+    <div class="welcome-hero">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 1H7a2 2 0 00-2 2v18a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2zm-3 20h-4v-1h4v1zm3-3H7V4h10v14z"/></svg>
+      </div>
+      <h1>Device Check</h1>
+      <p>Quick device assessment for your protection plan.</p>
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="welcome-step-num">1</div>
+          <div>
+            <div class="welcome-step-text">Automatic Scan</div>
+            <div class="welcome-step-sub">We check your hardware silently</div>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-num">2</div>
+          <div>
+            <div class="welcome-step-text">Confirm &amp; Capture IMEI</div>
+            <div class="welcome-step-sub">Screenshot your IMEI from *#06#</div>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="welcome-step-num">3</div>
+          <div>
+            <div class="welcome-step-text">Condition Photos</div>
+            <div class="welcome-step-sub">Mirror photos of your device (can complete later)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-bottom">
+      <button class="btn btn-primary" onclick="requestPermissionsAndStart()">Start Device Check</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 1: SCANNING -->
+  <div class="screen" id="screen-1">
+    <div class="scan-container">
+      <div class="scan-ring">
+        <div class="scan-ring-inner">
+          <div class="scan-ring-icon">📱</div>
+        </div>
+      </div>
+      <div class="scan-title">Scanning Device</div>
+      <div class="scan-status" id="scanStatus">Initialising diagnostics...</div>
+      <div class="scan-checks" id="scanChecks">
+        <div class="scan-check-item" id="chk-identity"><span class="scan-check-icon">○</span> Device identity</div>
+        <div class="scan-check-item" id="chk-camera"><span class="scan-check-icon">○</span> Camera check</div>
+        <div class="scan-check-item" id="chk-sensors"><span class="scan-check-icon">○</span> Sensor sweep</div>
+        <div class="scan-check-item" id="chk-mic"><span class="scan-check-icon">○</span> Microphone</div>
+        <div class="scan-check-item" id="chk-screen"><span class="scan-check-icon">○</span> Display analysis</div>
+        <div class="scan-check-item" id="chk-storage"><span class="scan-check-icon">○</span> Storage &amp; memory</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: DISPLAY ZONE TEST -->
+  <div class="screen" id="screen-2">
+    <h2 class="section-title">Display Check</h2>
+    <p class="section-desc">Trace your finger around the border of the screen to test for dead zones.</p>
+
+    <div class="trace-container" id="traceContainer">
+      <div class="trace-grid">
+        <div class="trace-zone corner" id="zone-0-0" data-zone="0-0"></div>
+        <div class="trace-zone edge" id="zone-0-1" data-zone="0-1"></div>
+        <div class="trace-zone corner" id="zone-0-2" data-zone="0-2"></div>
+        <div class="trace-zone edge" id="zone-1-0" data-zone="1-0"></div>
+        <div class="trace-zone center" id="zone-1-1" data-zone="1-1"></div>
+        <div class="trace-zone edge" id="zone-1-2" data-zone="1-2"></div>
+        <div class="trace-zone corner" id="zone-2-0" data-zone="2-0"></div>
+        <div class="trace-zone edge" id="zone-2-1" data-zone="2-1"></div>
+        <div class="trace-zone corner" id="zone-2-2" data-zone="2-2"></div>
+      </div>
+      <div class="trace-path" id="tracePath"></div>
+      <div class="trace-instruction" id="traceInstruction">
+        <div class="trace-finger">👆</div>
+        <div>Drag your finger around the edges</div>
+      </div>
+    </div>
+
+    <div class="trace-progress">
+      <div class="trace-progress-label">Zones tested: <strong><span id="traceZoneCount">0</span>/8</strong></div>
+      <div class="trace-progress-bar">
+        <div class="trace-progress-fill" id="traceProgressFill"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="traceNextBtn" onclick="completeTraceTest()" disabled>
+      Continue
+    </button>
+    <button class="btn btn-secondary" onclick="skipTraceTest()" style="margin-top:8px; font-size:13px;">
+      Skip — device has no touchscreen issues
+    </button>
+  </div>
+
+  <!-- SCREEN 3: CONFIRM DEVICE + IMEI SCREENSHOT -->
+  <div class="screen" id="screen-3">
+    <h2 class="section-title">Confirm Your Device</h2>
+    <p class="section-desc">Verify the detected device and capture your IMEI.</p>
+
+    <div class="detected-card" id="detectedCard">
+      <div class="detected-label">Detected Device</div>
+      <div class="detected-device" id="detectedDevice">Identifying...</div>
+      <div class="detected-specs" id="detectedSpecs"></div>
+    </div>
+
+    <div class="card" id="manualOverride" style="display:none">
+      <div class="card-title">Not your device?</div>
+      <div class="card-desc">Select the correct details below.</div>
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select class="form-select" id="deviceBrand" onchange="updateModels()">
+          <option value="">Select brand</option>
+          <option value="samsung">Samsung</option>
+          <option value="apple">Apple</option>
+          <option value="huawei">Huawei</option>
+          <option value="xiaomi">Xiaomi</option>
+          <option value="oppo">OPPO</option>
+          <option value="vivo">Vivo</option>
+          <option value="realme">Realme</option>
+          <option value="oneplus">OnePlus</option>
+          <option value="honor">Honor</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Model</label>
+        <select class="form-select" id="deviceModel">
+          <option value="">Select model</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" id="btnCorrect" onclick="toggleManualOverride()" style="margin-bottom:20px; width:auto; padding:10px 20px; font-size:13px;">
+      This isn't my device
+    </button>
+
+    <!-- IMEI Screenshot Capture -->
+    <div class="card">
+      <div class="card-title">Capture IMEI</div>
+      <div class="card-desc">We need a screenshot of your IMEI number for verification.</div>
+
+      <div class="imei-instruction">
+        <div class="imei-instruction-step">
+          <div class="imei-step-num">1</div>
+          <div class="imei-step-text">Tap the button below to open your dialler with <strong>*#06#</strong></div>
+        </div>
+        <div class="imei-instruction-step">
+          <div class="imei-step-num">2</div>
+          <div class="imei-step-text">Take a screenshot of the IMEI screen (Power + Volume Up on most phones)</div>
+        </div>
+        <div class="imei-instruction-step">
+          <div class="imei-step-num">3</div>
+          <div class="imei-step-text">Come back here — the app will be waiting for your screenshot</div>
+        </div>
+      </div>
+
+      <a href="tel:*%2306%23" class="btn btn-secondary" style="margin-bottom:16px; text-decoration:none;">
+        Open Dialler with *#06#
+      </a>
+
+      <div class="imei-capture-area" id="imeiCaptureArea" onclick="document.getElementById('imeiInput').click()">
+        <div id="imeiPlaceholder">
+          <div class="imei-capture-icon">📸</div>
+          <div class="imei-capture-label">Tap to upload IMEI screenshot</div>
+          <div class="imei-capture-hint">Select from your photos or screenshots</div>
+        </div>
+      </div>
+      <input type="file" accept="image/*" class="hidden-input" id="imeiInput" onchange="handleIMEIScreenshot(event)">
+    </div>
+
+    <div class="btn-bottom">
+      <button class="btn btn-primary" id="btnConfirmNext" onclick="completeStage1()" disabled>Complete Stage 1</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: STAGE 1 RESULTS -->
+  <div class="screen" id="screen-4">
+    <div class="result-badge">
+      <div class="result-icon pass" id="resultIcon">✓</div>
+      <div class="result-title" id="resultTitle">Stage 1 Complete</div>
+      <div class="result-subtitle" id="resultSubtitle">Device diagnostics and IMEI captured successfully.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Diagnostic Summary</div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🆔</span>
+          <span class="result-row-label">Device Identity</span>
+        </div>
+        <span class="result-tag pass" id="res-identity">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📷</span>
+          <span class="result-row-label">Cameras</span>
+        </div>
+        <span class="result-tag pass" id="res-camera">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">⚙️</span>
+          <span class="result-row-label">Sensors</span>
+        </div>
+        <span class="result-tag pass" id="res-sensors">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🎙️</span>
+          <span class="result-row-label">Microphone</span>
+        </div>
+        <span class="result-tag pass" id="res-mic">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🖥️</span>
+          <span class="result-row-label">Display</span>
+        </div>
+        <span class="result-tag pass" id="res-screen">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📸</span>
+          <span class="result-row-label">IMEI Screenshot</span>
+        </div>
+        <span class="result-tag pass" id="res-imei">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🪞</span>
+          <span class="result-row-label">Condition Photos</span>
+        </div>
+        <span class="result-tag pending" id="res-photos">PENDING</span>
+      </div>
+    </div>
+
+    <div class="ref-id">
+      <div class="ref-id-label">Assessment Reference</div>
+      <div class="ref-id-value" id="refId">NC-000000</div>
+    </div>
+    <div class="timestamp" id="timestamp"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" style="margin-bottom:4px">Device</div>
+      <div class="card-desc" id="resultDeviceInfo" style="margin-bottom:0"></div>
+    </div>
+
+    <div class="card" style="margin-top:8px; background: #FEF3C7; border-color: var(--warning);">
+      <div class="card-title" style="margin-bottom:4px; color: #92400E;">Condition photos required</div>
+      <div class="card-desc" style="margin-bottom:0; color: #92400E;">
+        To complete your assessment, you'll need to take mirror photos of your device. You have <strong>72 hours</strong> to complete this step. Your policy will remain in pending status until photos are submitted.
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="downloadReport('stage1')" style="margin-bottom:12px">Download Stage 1 Report</button>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="finishStage1()">Complete Later</button>
+      <button class="btn btn-primary" onclick="startStage2()">Take Photos Now</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 5: STAGE 2 - DEVICE RE-VERIFICATION -->
+  <div class="screen" id="screen-5">
+    <div class="verify-container" id="verifyContainer">
+      <div class="verify-ring"></div>
+      <div class="scan-title">Verifying Device</div>
+      <div class="scan-status" id="verifyStatus">Matching device fingerprint...</div>
+    </div>
+  </div>
+
+  <!-- SCREEN 6: STAGE 2 - MIRROR PHOTOS -->
+  <div class="screen" id="screen-6">
+    <h2 class="section-title">Condition Photos</h2>
+    <p class="section-desc">Take mirror photos to document your device's physical condition.</p>
+
+    <div class="stage-banner">
+      <div class="stage-banner-title">Stage 2 — Photo Evidence</div>
+      <div class="stage-banner-desc">Reference</div>
+      <div class="stage-banner-ref" id="stage2Ref">NC-000000</div>
+    </div>
+
+    <div class="mirror-guide">
+      <div class="mirror-guide-title">How to take mirror photos</div>
+      <div class="mirror-step">
+        <span class="mirror-step-icon">🪞</span>
+        <span>Stand in front of a mirror</span>
+      </div>
+      <div class="mirror-step">
+        <span class="mirror-step-icon">📱</span>
+        <span><strong>Screen photo:</strong> Hold your phone facing the mirror. Your front camera will capture the screen and front of the device in the reflection.</span>
+      </div>
+      <div class="mirror-step">
+        <span class="mirror-step-icon">🔄</span>
+        <span><strong>Back photo:</strong> Turn your phone around so the back faces the mirror. Your back camera will capture the back of the device in the reflection.</span>
+      </div>
+      <div class="mirror-step">
+        <span class="mirror-step-icon">💡</span>
+        <span>Use good lighting. Make sure the full device is visible in the reflection, including edges and corners.</span>
+      </div>
+    </div>
+
+    <div class="photo-section-label">Required — Mirror Photos</div>
+    <div class="photo-grid">
+      <div class="photo-slot" id="photo-screen" onclick="capturePhoto('screen')">
+        <svg class="photo-slot-icon" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="3" width="20" height="30" rx="3" stroke="#117F84" stroke-width="2" fill="none"/>
+          <rect x="11" y="7" width="14" height="20" rx="1" fill="#CEF1F2"/>
+          <circle cx="18" cy="30" r="1.5" fill="#117F84"/>
+        </svg>
+        <span class="photo-slot-label">Screen</span>
+        <span class="photo-slot-sub">Tap to capture</span>
+        <span class="photo-required-tag">Required</span>
+      </div>
+      <div class="photo-slot" id="photo-back" onclick="capturePhoto('back')">
+        <svg class="photo-slot-icon" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="3" width="20" height="30" rx="3" stroke="#117F84" stroke-width="2" fill="#E0EDED"/>
+          <circle cx="18" cy="10" r="3.5" stroke="#117F84" stroke-width="1.5" fill="#CEF1F2"/>
+          <circle cx="18" cy="10" r="1.5" fill="#117F84"/>
+          <rect x="15" y="16" width="6" height="1.5" rx="0.75" fill="#117F84"/>
+        </svg>
+        <span class="photo-slot-label">Back</span>
+        <span class="photo-slot-sub">Tap to capture</span>
+        <span class="photo-required-tag">Required</span>
+      </div>
+    </div>
+
+    <input type="file" accept="image/*" capture="user" class="hidden-input" id="photoInput" onchange="handlePhoto(event)">
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-desc" style="margin-bottom:0; font-size:12px;">
+        Photos must be taken with this device to verify they match the enrolled device. Photos from other devices will be rejected.
+      </div>
+    </div>
+
+    <div class="btn-bottom">
+      <button class="btn btn-primary" id="btnPhotoSubmit" onclick="submitStage2()" disabled>Submit Photos</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 7: FINAL RESULTS -->
+  <div class="screen" id="screen-7">
+    <div class="result-badge">
+      <div class="result-icon pass" id="finalResultIcon">✓</div>
+      <div class="result-title" id="finalResultTitle">Assessment Complete</div>
+      <div class="result-subtitle" id="finalResultSubtitle">Your device is fully verified and eligible for protection coverage.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Full Assessment</div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🆔</span>
+          <span class="result-row-label">Device Identity</span>
+        </div>
+        <span class="result-tag pass" id="final-identity">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📷</span>
+          <span class="result-row-label">Cameras</span>
+        </div>
+        <span class="result-tag pass" id="final-camera">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">⚙️</span>
+          <span class="result-row-label">Sensors</span>
+        </div>
+        <span class="result-tag pass" id="final-sensors">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🎙️</span>
+          <span class="result-row-label">Microphone</span>
+        </div>
+        <span class="result-tag pass" id="final-mic">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🖥️</span>
+          <span class="result-row-label">Display</span>
+        </div>
+        <span class="result-tag pass" id="final-screen">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📸</span>
+          <span class="result-row-label">IMEI Screenshot</span>
+        </div>
+        <span class="result-tag pass" id="final-imei">PASS</span>
+      </div>
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🪞</span>
+          <span class="result-row-label">Condition Photos</span>
+        </div>
+        <span class="result-tag pass" id="final-photos">PASS</span>
+      </div>
+    </div>
+
+    <div class="ref-id">
+      <div class="ref-id-label">Assessment Reference</div>
+      <div class="ref-id-value" id="finalRefId">NC-000000</div>
+    </div>
+    <div class="timestamp" id="finalTimestamp"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" style="margin-bottom:4px">Device</div>
+      <div class="card-desc" id="finalDeviceInfo" style="margin-bottom:0"></div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="downloadReport('full')" style="margin-bottom:12px">Download Full Report</button>
+    <div class="btn-bottom">
+      <button class="btn btn-success" onclick="finishCheck()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ===================== STATE =====================
+const report = {
+  id: '',
+  timestamp: '',
+  stage: 1,
+  device: {
+    detected: { brand: '', model: '', specs: {} },
+    confirmed: { brand: '', model: '' },
+    mismatch: false,
+    fingerprint: ''
+  },
+  imei: { screenshot: null, extracted: '' },
+  diagnostics: {
+    identity: { status: 'pending', data: {} },
+    camera: { status: 'pending', data: {} },
+    sensors: { status: 'pending', data: {} },
+    mic: { status: 'pending', data: {} },
+    screen: { status: 'pending', data: {} },
+    storage: { status: 'pending', data: {} }
+  },
+  photos: { screen: null, back: null },
+  touchLog: [],
+  stage1Result: 'pending',
+  stage2Result: 'pending',
+  result: 'pending'
+};
+
+let currentPhotoSlot = null;
+let sensorPermissionGranted = false;
+
+// ===================== BORDER TRACE DISPLAY TEST =====================
+const traceZones = new Set();
+const requiredZones = ['0-0', '0-1', '0-2', '1-0', '1-2', '2-0', '2-1', '2-2']; // 8 outer zones
+let traceActive = false;
+
+function startTraceTest() {
+  traceActive = true;
+  traceZones.clear();
+  const container = document.getElementById('traceContainer');
+  if (!container) return;
+
+  function handleTrace(e) {
+    if (!traceActive) return;
+    e.preventDefault();
+
+    const rect = container.getBoundingClientRect();
+    let clientX, clientY;
+
+    if (e.touches) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const w = rect.width;
+    const h = rect.height;
+
+    const col = x < w / 3 ? 0 : x < (2 * w / 3) ? 1 : 2;
+    const row = y < h / 3 ? 0 : y < (2 * h / 3) ? 1 : 2;
+    const zone = `${row}-${col}`;
+
+    if (!traceZones.has(zone)) {
+      traceZones.add(zone);
+      const el = document.getElementById(`zone-${zone}`);
+      if (el) el.classList.add('hit');
+      updateTraceProgress();
+    }
+  }
+
+  container.addEventListener('touchstart', handleTrace, { passive: false });
+  container.addEventListener('touchmove', handleTrace, { passive: false });
+  container.addEventListener('mousedown', handleTrace);
+  container.addEventListener('mousemove', (e) => {
+    if (e.buttons === 1) handleTrace(e);
+  });
+}
+
+function updateTraceProgress() {
+  const outerHit = requiredZones.filter(z => traceZones.has(z)).length;
+  document.getElementById('traceZoneCount').textContent = outerHit;
+  document.getElementById('traceProgressFill').style.width = `${(outerHit / 8) * 100}%`;
+
+  // Hide instruction after first zone hit
+  if (traceZones.size > 0) {
+    document.getElementById('traceInstruction').style.opacity = '0.3';
+  }
+
+  // Enable continue when all 8 outer zones hit
+  if (outerHit >= 8) {
+    document.getElementById('traceNextBtn').disabled = false;
+    document.getElementById('traceNextBtn').textContent = 'All zones clear — Continue';
+  }
+}
+
+function completeTraceTest() {
+  traceActive = false;
+  const outerHit = requiredZones.filter(z => traceZones.has(z)).length;
+
+  report.diagnostics.screen.data.traceZones = Array.from(traceZones);
+  report.diagnostics.screen.data.traceZonesCovered = traceZones.size;
+  report.diagnostics.screen.data.outerZonesCovered = outerHit;
+  report.diagnostics.screen.data.testMethod = 'border-trace';
+
+  if (outerHit >= 6) {
+    report.diagnostics.screen.status = 'passed';
+  } else {
+    report.diagnostics.screen.status = 'failed';
+    report.diagnostics.screen.data.reason = `Only ${outerHit}/8 edge zones responsive — possible dead zones`;
+  }
+
+  goToStep(3);
+}
+
+function skipTraceTest() {
+  traceActive = false;
+  report.diagnostics.screen.data.testMethod = 'skipped';
+  report.diagnostics.screen.data.traceZonesCovered = 0;
+  report.diagnostics.screen.data.outerZonesCovered = 0;
+  report.diagnostics.screen.status = 'passed'; // Trust user's skip = no issues
+  report.diagnostics.screen.data.reason = 'User skipped — reported no touchscreen issues';
+  goToStep(3);
+}
+
+// Basic touch logging (for report data)
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  report.touchLog.push({ type: 'start', x: Math.round(t.clientX), y: Math.round(t.clientY), ts: Date.now() });
+}, { passive: true });
+
+// ===================== MODELS DB =====================
+const modelsDB = {
+  samsung: ['Galaxy S24 Ultra','Galaxy S24+','Galaxy S24','Galaxy S23 Ultra','Galaxy S23+','Galaxy S23','Galaxy S22 Ultra','Galaxy S22','Galaxy S21','Galaxy A55','Galaxy A54','Galaxy A35','Galaxy A34','Galaxy A25','Galaxy A15','Galaxy A14','Galaxy Z Fold5','Galaxy Z Flip5','Galaxy M54','Galaxy M34'],
+  apple: ['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17 Plus','iPhone 17','iPhone 17 Air','iPhone 16 Pro Max','iPhone 16 Pro','iPhone 16 Plus','iPhone 16','iPhone 16e','iPhone 15 Pro Max','iPhone 15 Pro','iPhone 15 Plus','iPhone 15','iPhone 14 Pro Max','iPhone 14 Pro','iPhone 14','iPhone 13 Pro','iPhone 13','iPhone 12 Pro','iPhone 12','iPhone 11','iPhone SE (2022)','iPhone SE (2020)'],
+  huawei: ['P60 Pro','P50 Pro','Mate 60 Pro','Mate 50 Pro','Nova 12','Nova 11','Nova 10'],
+  xiaomi: ['14 Pro','14','13 Ultra','13 Pro','13','Redmi Note 13 Pro','Redmi Note 13','Redmi Note 12','Redmi 13C','Poco X6 Pro','Poco X5 Pro','Poco M6 Pro'],
+  oppo: ['Find X7 Ultra','Find X6 Pro','Reno 11 Pro','Reno 11','Reno 10 Pro','A98','A78','A58'],
+  vivo: ['X100 Pro','X90 Pro','V30 Pro','V30','V29','Y100','Y36'],
+  realme: ['GT5 Pro','GT Neo 5','12 Pro+','12 Pro','Narzo 60 Pro','C55','C53'],
+  oneplus: ['12','11','Nord 3','Nord CE 3 Lite','Open'],
+  honor: ['Magic6 Pro','Magic5 Pro','90','X9b','X8b'],
+  other: ['Other']
+};
+
+// ===================== PERMISSIONS (iOS SENSOR FIX) =====================
+async function requestPermissionsAndStart() {
+  // iOS 13+ requires sensor permission from a user gesture
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const state = await DeviceMotionEvent.requestPermission();
+      sensorPermissionGranted = (state === 'granted');
+    } catch (e) {
+      sensorPermissionGranted = false;
+    }
+  } else {
+    // Android / older iOS — no permission needed
+    sensorPermissionGranted = true;
+  }
+
+  goToStep(1);
+  setTimeout(() => runDiagnostics(), 500);
+}
+
+// ===================== DEVICE FINGERPRINTING =====================
+function getDeviceFingerprint() {
+  const fp = {};
+  fp.userAgent = navigator.userAgent;
+  fp.screenWidth = screen.width;
+  fp.screenHeight = screen.height;
+  fp.devicePixelRatio = window.devicePixelRatio;
+  fp.colorDepth = screen.colorDepth;
+  fp.cpuCores = navigator.hardwareConcurrency || 'unknown';
+  fp.deviceMemory = navigator.deviceMemory || 'unknown';
+  fp.platform = navigator.platform;
+  fp.maxTouchPoints = navigator.maxTouchPoints;
+
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        fp.gpuVendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+        fp.gpuRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+      }
+      fp.glVersion = gl.getParameter(gl.VERSION);
+    }
+  } catch (e) {
+    fp.gpuError = true;
+  }
+
+  if (navigator.connection) {
+    fp.connectionType = navigator.connection.effectiveType;
+    fp.downlink = navigator.connection.downlink;
+  }
+
+  return fp;
+}
+
+function generateFingerprintHash(fp) {
+  const key = [fp.screenWidth, fp.screenHeight, fp.devicePixelRatio, fp.cpuCores, fp.deviceMemory, fp.gpuRenderer || '', fp.platform].join('|');
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    const char = key.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return 'FP-' + Math.abs(hash).toString(36).toUpperCase();
+}
+
+function identifyDevice(fp) {
+  const ua = fp.userAgent;
+  let brand = 'Unknown';
+  let model = 'Unknown Device';
+
+  if (/iPhone/.test(ua)) {
+    brand = 'Apple';
+    const screenKey = `${fp.screenWidth}x${fp.screenHeight}@${fp.devicePixelRatio}`;
+    const iphoneMap = {
+      // iPhone 17 series (2025)
+      '440x956@3': 'iPhone 17 Pro Max',
+      '402x874@3': 'iPhone 17 Pro / 16 Pro',
+      '393x852@3': 'iPhone 17 / 16 / 15 Pro / 15 / 14 Pro',
+      '430x932@3': 'iPhone 17 Plus / 16 Plus / 15 Pro Max / 15 Plus / 14 Pro Max',
+      // iPhone 16 series (2024)
+      '440x956@3.x': 'iPhone 16 Pro Max',
+      // iPhone 14-15 series
+      '390x844@3': 'iPhone 14 / 13 / 12',
+      '428x926@3': 'iPhone 14 Plus / 13 Pro Max / 12 Pro Max',
+      // iPhone 11 and older
+      '414x896@3': 'iPhone 11 Pro Max / XS Max',
+      '414x896@2': 'iPhone 11 / XR',
+      '375x812@3': 'iPhone 13 Mini / 12 Mini / X / XS',
+      '375x667@2': 'iPhone SE / 8 / 7 / 6s',
+      '320x568@2': 'iPhone SE (1st gen)',
+      // iPhone 16e / SE 4 (2025)
+      '393x852@3.x': 'iPhone 16e',
+    };
+    model = iphoneMap[screenKey] || `iPhone (${screenKey})`;
+  }
+  else if (/Samsung/i.test(ua)) { brand = 'Samsung'; model = extractAndroidModel(ua); }
+  else if (/Huawei/i.test(ua)) { brand = 'Huawei'; model = extractAndroidModel(ua); }
+  else if (/Xiaomi|Redmi|POCO/i.test(ua)) { brand = 'Xiaomi'; model = extractAndroidModel(ua); }
+  else if (/OPPO/i.test(ua)) { brand = 'OPPO'; model = extractAndroidModel(ua); }
+  else if (/vivo/i.test(ua)) { brand = 'Vivo'; model = extractAndroidModel(ua); }
+  else if (/realme/i.test(ua)) { brand = 'Realme'; model = extractAndroidModel(ua); }
+  else if (/OnePlus/i.test(ua)) { brand = 'OnePlus'; model = extractAndroidModel(ua); }
+  else if (/HONOR/i.test(ua)) { brand = 'Honor'; model = extractAndroidModel(ua); }
+  else if (/Android/.test(ua)) { brand = 'Android'; model = extractAndroidModel(ua); }
+
+  return { brand, model };
+}
+
+function extractAndroidModel(ua) {
+  const match = ua.match(/;\s*([^;)]+)\s*Build\//);
+  return match ? match[1].trim() : 'Unknown Model';
+}
+
+// ===================== DIAGNOSTICS =====================
+async function runDiagnostics() {
+  const fp = getDeviceFingerprint();
+  const device = identifyDevice(fp);
+
+  // Generate fingerprint hash for device re-verification
+  report.device.fingerprint = generateFingerprintHash(fp);
+
+  // 1. Device Identity
+  updateCheckStatus('chk-identity', 'active', 'Identifying device...');
+  await delay(600);
+  report.diagnostics.identity.data = fp;
+  report.device.detected = { brand: device.brand, model: device.model, specs: fp };
+  report.diagnostics.identity.status = 'passed';
+  updateCheckStatus('chk-identity', 'done', 'Device identity ✓');
+
+  // 2. Camera — capture frames and verify non-black image data
+  updateCheckStatus('chk-camera', 'active', 'Testing cameras...');
+  document.getElementById('scanStatus').textContent = 'Checking cameras...';
+  try {
+    let rearOk = false, frontOk = false;
+
+    // Test rear camera with frame capture
+    const rearStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 } }
+    });
+    const rearTrack = rearStream.getVideoTracks()[0];
+    const rearCaps = rearTrack.getSettings();
+    const rearFrameResult = await captureAndAnalyseFrame(rearStream);
+    report.diagnostics.camera.data.rear = {
+      working: rearFrameResult.valid,
+      width: rearCaps.width,
+      height: rearCaps.height,
+      facingMode: rearCaps.facingMode || 'environment',
+      brightness: rearFrameResult.brightness,
+      variance: rearFrameResult.variance
+    };
+    rearOk = rearFrameResult.valid;
+    rearTrack.stop();
+
+    // Test front camera with frame capture
+    try {
+      const frontStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 } }
+      });
+      const frontTrack = frontStream.getVideoTracks()[0];
+      const frontCaps = frontTrack.getSettings();
+      const frontFrameResult = await captureAndAnalyseFrame(frontStream);
+      report.diagnostics.camera.data.front = {
+        working: frontFrameResult.valid,
+        width: frontCaps.width,
+        height: frontCaps.height,
+        facingMode: frontCaps.facingMode || 'user',
+        brightness: frontFrameResult.brightness,
+        variance: frontFrameResult.variance
+      };
+      frontOk = frontFrameResult.valid;
+      frontTrack.stop();
+    } catch (e) {
+      report.diagnostics.camera.data.front = { working: false, error: e.message };
+    }
+
+    // BOTH cameras must produce valid frames to pass
+    const cameraPassed = rearOk && frontOk;
+    report.diagnostics.camera.status = cameraPassed ? 'passed' : 'failed';
+    report.diagnostics.camera.data.reason = !cameraPassed
+      ? `Rear: ${rearOk ? 'ok' : 'failed'}, Front: ${frontOk ? 'ok' : 'failed'}`
+      : 'Both cameras producing valid images';
+    updateCheckStatus('chk-camera', cameraPassed ? 'done' : 'failed',
+      cameraPassed ? 'Cameras ✓' : 'Camera check ✗');
+  } catch (e) {
+    report.diagnostics.camera.status = 'failed';
+    report.diagnostics.camera.data = { error: e.message };
+    updateCheckStatus('chk-camera', 'failed', 'Camera check ✗');
+  }
+
+  // 3. Sensors — require BOTH accelerometer AND gyroscope
+  updateCheckStatus('chk-sensors', 'active', 'Reading sensors...');
+  document.getElementById('scanStatus').textContent = 'Checking sensors...';
+  report.diagnostics.sensors.data = await testSensors();
+  const sensorsWorking = report.diagnostics.sensors.data.accelerometer && report.diagnostics.sensors.data.gyroscope;
+  report.diagnostics.sensors.status = sensorsWorking ? 'passed' : 'failed';
+  if (!sensorsWorking) {
+    report.diagnostics.sensors.data.reason = `Accel: ${report.diagnostics.sensors.data.accelerometer ? 'ok' : 'failed'}, Gyro: ${report.diagnostics.sensors.data.gyroscope ? 'ok' : 'failed'}`;
+  }
+  updateCheckStatus('chk-sensors', sensorsWorking ? 'done' : 'failed',
+    sensorsWorking ? 'Sensors ✓' : 'Sensors ✗');
+
+  // 4. Microphone — sample multiple times, require signal above noise floor
+  updateCheckStatus('chk-mic', 'active', 'Testing microphone...');
+  document.getElementById('scanStatus').textContent = 'Checking microphone...';
+  try {
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioCtx.createAnalyser();
+    const source = audioCtx.createMediaStreamSource(micStream);
+    source.connect(analyser);
+    analyser.fftSize = 256;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let maxLevel = 0;
+    let samples = [];
+
+    // Sample 5 times over 1 second to catch ambient sound
+    for (let i = 0; i < 5; i++) {
+      await delay(200);
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      samples.push(Math.round(avg));
+      if (avg > maxLevel) maxLevel = avg;
+    }
+
+    micStream.getTracks().forEach(t => t.stop());
+    audioCtx.close();
+
+    // A working mic in a normal environment should pick up some ambient sound
+    // Threshold of 1 catches completely dead mics (all zeros)
+    // We also check if there's any variance — a stuck mic returns flat values
+    const avgLevel = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+    const hasVariance = Math.max(...samples) - Math.min(...samples) > 0;
+    const micWorking = (maxLevel > 1) || hasVariance;
+
+    report.diagnostics.mic.data = {
+      working: micWorking,
+      avgLevel: avgLevel,
+      peakLevel: Math.round(maxLevel),
+      samples: samples,
+      hasVariance: hasVariance
+    };
+    report.diagnostics.mic.status = micWorking ? 'passed' : 'failed';
+    if (!micWorking) report.diagnostics.mic.data.reason = 'No audio signal detected — mic may be damaged or blocked';
+    updateCheckStatus('chk-mic', micWorking ? 'done' : 'failed',
+      micWorking ? 'Microphone ✓' : 'Microphone ✗');
+  } catch (e) {
+    report.diagnostics.mic.data = { working: false, error: e.message };
+    report.diagnostics.mic.status = 'failed';
+    updateCheckStatus('chk-mic', 'failed', 'Microphone ✗');
+  }
+
+  // 5. Screen
+  updateCheckStatus('chk-screen', 'active', 'Analysing display...');
+  document.getElementById('scanStatus').textContent = 'Analysing display...';
+  await delay(400);
+  report.diagnostics.screen.data = {
+    width: screen.width,
+    height: screen.height,
+    pixelRatio: window.devicePixelRatio,
+    colorDepth: screen.colorDepth,
+    orientation: screen.orientation ? screen.orientation.type : 'unknown'
+  };
+  try {
+    const c = document.createElement('canvas');
+    c.width = 100; c.height = 100;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#FF0000'; ctx.fillRect(0, 0, 50, 50);
+    ctx.fillStyle = '#00FF00'; ctx.fillRect(50, 0, 50, 50);
+    ctx.fillStyle = '#0000FF'; ctx.fillRect(0, 50, 50, 50);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(50, 50, 50, 50);
+    const imgData = ctx.getImageData(0, 0, 100, 100);
+    const pixelCheck = imgData.data[0] === 255 && imgData.data[4] === 0;
+    report.diagnostics.screen.data.canvasRender = pixelCheck ? 'normal' : 'anomaly';
+  } catch (e) {
+    report.diagnostics.screen.data.canvasRender = 'error';
+  }
+  // Canvas render is the only scan-time display check
+  // Touch zone coverage is evaluated later at Stage 1 completion when user has had time to interact
+  report.diagnostics.screen.status = 'passed';
+  updateCheckStatus('chk-screen', 'done', 'Display ✓');
+
+  // 6. Storage
+  updateCheckStatus('chk-storage', 'active', 'Checking storage...');
+  document.getElementById('scanStatus').textContent = 'Checking storage...';
+  await delay(300);
+  try {
+    const estimate = await navigator.storage.estimate();
+    report.diagnostics.storage.data = {
+      quota: Math.round((estimate.quota || 0) / (1024 * 1024 * 1024) * 10) / 10,
+      usage: Math.round((estimate.usage || 0) / (1024 * 1024)),
+      cpuCores: navigator.hardwareConcurrency || 'unknown',
+      deviceMemory: navigator.deviceMemory || 'unknown'
+    };
+  } catch (e) {
+    report.diagnostics.storage.data = {
+      error: e.message,
+      cpuCores: navigator.hardwareConcurrency || 'unknown',
+      deviceMemory: navigator.deviceMemory || 'unknown'
+    };
+  }
+  report.diagnostics.storage.status = 'passed';
+  updateCheckStatus('chk-storage', 'done', 'Storage & memory ✓');
+
+  // Done scanning
+  document.getElementById('scanStatus').textContent = 'Scan complete';
+  await delay(800);
+
+  // Populate detected device
+  document.getElementById('detectedDevice').textContent = `${device.brand} ${device.model}`;
+  let specParts = [];
+  if (fp.deviceMemory && fp.deviceMemory !== 'unknown') specParts.push(`${fp.deviceMemory} GB RAM`);
+  if (fp.cpuCores && fp.cpuCores !== 'unknown') specParts.push(`${fp.cpuCores}-core CPU`);
+  specParts.push(`${fp.screenWidth}×${fp.screenHeight} display`);
+  document.getElementById('detectedSpecs').textContent = specParts.join(' · ');
+
+  goToStep(2);
+  startTraceTest();
+}
+
+// Capture a frame from camera stream and analyse if it's a real image (not black/uniform)
+async function captureAndAnalyseFrame(stream) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    video.play().then(async () => {
+      // Wait for video to actually produce frames
+      await delay(500);
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imgData.data;
+
+      // Calculate average brightness and variance
+      let totalBrightness = 0;
+      let pixelValues = [];
+      const sampleStep = 40; // Sample every 40th pixel for speed
+      for (let i = 0; i < pixels.length; i += 4 * sampleStep) {
+        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+        totalBrightness += brightness;
+        pixelValues.push(brightness);
+      }
+
+      const avgBrightness = totalBrightness / pixelValues.length;
+
+      // Calculate variance — a real image has varied pixel values, a dead camera is uniform
+      let varianceSum = 0;
+      for (const v of pixelValues) {
+        varianceSum += (v - avgBrightness) * (v - avgBrightness);
+      }
+      const variance = varianceSum / pixelValues.length;
+
+      video.pause();
+      video.srcObject = null;
+
+      // Thresholds:
+      // - Brightness > 5: not all black (dead sensor)
+      // - Variance > 50: image has detail (not a uniform color = stuck/blocked lens)
+      const valid = avgBrightness > 5 && variance > 50;
+
+      resolve({
+        valid: valid,
+        brightness: Math.round(avgBrightness),
+        variance: Math.round(variance)
+      });
+    }).catch(() => {
+      resolve({ valid: false, brightness: 0, variance: 0 });
+    });
+  });
+}
+
+function testSensors() {
+  return new Promise((resolve) => {
+    const result = { accelerometer: false, gyroscope: false };
+
+    if (!sensorPermissionGranted) {
+      result.permissionDenied = true;
+      resolve(result);
+      return;
+    }
+
+    const motionHandler = (e) => {
+      if (e.accelerationIncludingGravity) {
+        const a = e.accelerationIncludingGravity;
+        if (a.x !== null || a.y !== null || a.z !== null) {
+          result.accelerometer = true;
+          result.accelData = { x: a.x, y: a.y, z: a.z };
+        }
+      }
+      if (e.rotationRate) {
+        const r = e.rotationRate;
+        if (r.alpha !== null || r.beta !== null || r.gamma !== null) {
+          result.gyroscope = true;
+          result.gyroData = { alpha: r.alpha, beta: r.beta, gamma: r.gamma };
+        }
+      }
+    };
+
+    window.addEventListener('devicemotion', motionHandler);
+
+    setTimeout(() => {
+      window.removeEventListener('devicemotion', motionHandler);
+      resolve(result);
+    }, 1500);
+  });
+}
+
+function updateCheckStatus(id, status, text) {
+  const el = document.getElementById(id);
+  el.className = `scan-check-item ${status}`;
+  const icons = { active: '◉', done: '✓', failed: '✗' };
+  el.querySelector('.scan-check-icon').textContent = icons[status] || '○';
+  el.lastChild.textContent = ' ' + text.replace(/^[^a-zA-Z]+/, '');
+}
+
+// ===================== NAVIGATION =====================
+const totalSteps = 7;
+
+function goToStep(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${n}`).classList.add('active');
+  document.getElementById('progressFill').style.width = `${(n / totalSteps) * 100}%`;
+  window.scrollTo(0, 0);
+}
+
+// ===================== DEVICE CONFIRM =====================
+function toggleManualOverride() {
+  const el = document.getElementById('manualOverride');
+  const btn = document.getElementById('btnCorrect');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = 'Use detected device';
+    report.device.mismatch = true;
+  } else {
+    el.style.display = 'none';
+    btn.textContent = "This isn't my device";
+    report.device.mismatch = false;
+  }
+}
+
+function updateModels() {
+  const brand = document.getElementById('deviceBrand').value;
+  const sel = document.getElementById('deviceModel');
+  sel.innerHTML = '<option value="">Select model</option>';
+  if (brand && modelsDB[brand]) {
+    modelsDB[brand].forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      sel.appendChild(opt);
+    });
+  }
+  report.device.confirmed.brand = brand;
+}
+
+document.getElementById('deviceModel').addEventListener('change', function() {
+  report.device.confirmed.model = this.value;
+});
+
+// ===================== IMEI SCREENSHOT =====================
+function handleIMEIScreenshot(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    report.imei = {
+      screenshot: e.target.result,
+      timestamp: new Date().toISOString(),
+      size: file.size,
+      type: file.type
+    };
+
+    const area = document.getElementById('imeiCaptureArea');
+    area.classList.add('captured');
+    const placeholder = document.getElementById('imeiPlaceholder');
+    placeholder.style.display = 'none';
+
+    const img = document.createElement('img');
+    img.src = e.target.result;
+    area.appendChild(img);
+
+    // Enable continue button
+    document.getElementById('btnConfirmNext').disabled = false;
+
+    event.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== STAGE 1 COMPLETE =====================
+function completeStage1() {
+  const d = report.diagnostics;
+
+  // Camera and identity are critical — any failure = overall fail
+  const criticalChecks = ['identity', 'camera'];
+  const criticalFail = criticalChecks.some(k => d[k].status === 'failed');
+
+  // Non-critical checks — allow max 1 failure from sensors, mic, screen
+  const nonCriticalChecks = ['sensors', 'mic', 'screen'];
+  let nonCriticalFails = nonCriticalChecks.filter(k => d[k].status === 'failed').length;
+
+  // Screen/display status already set by trace test or skip
+  report.diagnostics.screen.data.totalTouchEvents = report.touchLog.length;
+  nonCriticalFails = nonCriticalChecks.filter(k => d[k].status === 'failed').length;
+
+  const hasIMEI = report.imei && report.imei.screenshot;
+  const overallPass = !criticalFail && nonCriticalFails <= 1 && hasIMEI;
+  report.stage1Result = overallPass ? 'pass' : 'fail';
+  report.stage = 1;
+
+  // Generate reference
+  report.id = 'NC-' + Date.now().toString(36).toUpperCase().slice(-6);
+  report.timestamp = new Date().toISOString();
+
+  // Update results display
+  const icon = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const subtitle = document.getElementById('resultSubtitle');
+
+  if (overallPass) {
+    icon.className = 'result-icon pass'; icon.textContent = '✓';
+    title.textContent = 'Stage 1 Complete';
+    subtitle.textContent = 'Device diagnostics and IMEI captured successfully.';
+  } else {
+    icon.className = 'result-icon fail'; icon.textContent = '✗';
+    title.textContent = 'Device Not Eligible';
+    subtitle.textContent = 'This device did not meet the requirements for coverage.';
+  }
+
+  setTag('res-identity', d.identity.status);
+  setTag('res-camera', d.camera.status);
+  setTag('res-sensors', d.sensors.status);
+  setTag('res-mic', d.mic.status);
+  setTag('res-screen', d.screen.status);
+  setTag('res-imei', hasIMEI ? 'passed' : 'failed');
+
+  document.getElementById('refId').textContent = report.id;
+  const now = new Date();
+  document.getElementById('timestamp').textContent =
+    `Stage 1 completed ${now.toLocaleDateString('en-MY')} at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}`;
+
+  const dev = report.device.mismatch
+    ? `${report.device.confirmed.brand} ${report.device.confirmed.model}`
+    : `${report.device.detected.brand} ${report.device.detected.model}`;
+  document.getElementById('resultDeviceInfo').innerHTML = `${dev}<br>Device Profile: ${report.device.fingerprint}`;
+
+  // Store fingerprint for Stage 2 verification
+  try {
+    localStorage.setItem('nc_stage1_' + report.id, JSON.stringify({
+      id: report.id,
+      fingerprint: report.device.fingerprint,
+      timestamp: report.timestamp,
+      device: report.device,
+      diagnostics: report.diagnostics,
+      imei: { timestamp: report.imei.timestamp, size: report.imei.size },
+      touchLog: report.touchLog.length
+    }));
+  } catch (e) { /* localStorage not available */ }
+
+  // Log Stage 1 report
+  console.log('=== NEXACORE STAGE 1 REPORT ===');
+  console.log(JSON.stringify(report, (key, val) => {
+    if (key === 'screenshot' && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
+    if (key === 'data' && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
+    return val;
+  }, 2));
+
+  goToStep(4);
+}
+
+function finishStage1() {
+  alert('Stage 1 complete.\n\nReference: ' + report.id + '\n\nYou have 72 hours to complete Stage 2 (condition photos). You will receive a link to continue.\n\nIn production, this would trigger a notification/SMS to the customer.');
+}
+
+// ===================== STAGE 2 =====================
+async function startStage2() {
+  document.getElementById('stage2Ref').textContent = report.id;
+  goToStep(5);
+
+  // Re-verify device fingerprint
+  document.getElementById('verifyStatus').textContent = 'Matching device fingerprint...';
+  await delay(1000);
+
+  const currentFP = getDeviceFingerprint();
+  const currentHash = generateFingerprintHash(currentFP);
+
+  document.getElementById('verifyStatus').textContent = 'Comparing hardware signatures...';
+  await delay(800);
+
+  if (currentHash === report.device.fingerprint) {
+    document.getElementById('verifyStatus').textContent = 'Device verified ✓';
+    await delay(600);
+    goToStep(6);
+  } else {
+    document.getElementById('verifyStatus').textContent = 'Device mismatch — photos must be taken on the enrolled device.';
+    const container = document.getElementById('verifyContainer');
+    container.querySelector('.verify-ring').style.display = 'none';
+    container.querySelector('.scan-title').textContent = 'Wrong Device';
+    container.querySelector('.scan-title').style.color = 'var(--danger)';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'btn btn-primary';
+    retryBtn.style.marginTop = '24px';
+    retryBtn.style.width = 'auto';
+    retryBtn.style.padding = '12px 32px';
+    retryBtn.textContent = 'Try Again';
+    retryBtn.onclick = () => startStage2();
+    container.appendChild(retryBtn);
+  }
+}
+
+// ===================== PHOTO CAPTURE =====================
+function capturePhoto(slot) {
+  currentPhotoSlot = slot;
+  const input = document.getElementById('photoInput');
+  // Screen photo = front camera (user), Back photo = back camera (environment)
+  input.setAttribute('capture', slot === 'back' ? 'environment' : 'user');
+  input.click();
+}
+
+function handlePhoto(event) {
+  const file = event.target.files[0];
+  if (!file || !currentPhotoSlot) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    report.photos[currentPhotoSlot] = {
+      data: e.target.result,
+      timestamp: new Date().toISOString(),
+      size: file.size,
+      type: file.type
+    };
+
+    const el = document.getElementById(`photo-${currentPhotoSlot}`);
+    const existingImg = el.querySelector('img');
+    if (existingImg) existingImg.remove();
+
+    const img = document.createElement('img');
+    img.src = e.target.result;
+    el.appendChild(img);
+    el.classList.add('captured');
+
+    if (!el.querySelector('.photo-check')) {
+      const check = document.createElement('div');
+      check.className = 'photo-check';
+      check.textContent = '✓';
+      el.appendChild(check);
+    }
+
+    // Check if both required photos done
+    const hasRequired = report.photos.screen && report.photos.back;
+    document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
+
+    event.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== STAGE 2 SUBMIT =====================
+function submitStage2() {
+  report.stage = 2;
+  report.stage2Result = 'pass';
+
+  const d = report.diagnostics;
+
+  // Same stricter logic as Stage 1
+  const criticalChecks = ['identity', 'camera'];
+  const criticalFail = criticalChecks.some(k => d[k].status === 'failed');
+  const nonCriticalChecks = ['sensors', 'mic', 'screen'];
+  const nonCriticalFails = nonCriticalChecks.filter(k => d[k].status === 'failed').length;
+
+  const photosOk = report.photos.screen && report.photos.back;
+  const hasIMEI = report.imei && report.imei.screenshot;
+
+  const overallPass = !criticalFail && nonCriticalFails <= 1 && hasIMEI && photosOk;
+  report.result = overallPass ? 'pass' : 'fail';
+
+  // Final results
+  const icon = document.getElementById('finalResultIcon');
+  const title = document.getElementById('finalResultTitle');
+  const subtitle = document.getElementById('finalResultSubtitle');
+
+  if (overallPass) {
+    icon.className = 'result-icon pass'; icon.textContent = '✓';
+    title.textContent = 'Assessment Complete';
+    subtitle.textContent = 'Your device is fully verified and eligible for protection coverage.';
+  } else {
+    icon.className = 'result-icon fail'; icon.textContent = '✗';
+    title.textContent = 'Assessment Failed';
+    subtitle.textContent = 'This device did not meet all requirements for coverage.';
+  }
+
+  setTag('final-identity', d.identity.status);
+  setTag('final-camera', d.camera.status);
+  setTag('final-sensors', d.sensors.status);
+  setTag('final-mic', d.mic.status);
+  setTag('final-screen', d.screen.status);
+  setTag('final-imei', hasIMEI ? 'passed' : 'failed');
+  setTag('final-photos', photosOk ? 'passed' : 'failed');
+
+  document.getElementById('finalRefId').textContent = report.id;
+  const now = new Date();
+  document.getElementById('finalTimestamp').textContent =
+    `Completed ${now.toLocaleDateString('en-MY')} at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}`;
+
+  const dev = report.device.mismatch
+    ? `${report.device.confirmed.brand} ${report.device.confirmed.model}`
+    : `${report.device.detected.brand} ${report.device.detected.model}`;
+  document.getElementById('finalDeviceInfo').innerHTML = `${dev}<br>Device Profile: ${report.device.fingerprint}`;
+
+  // Log full report
+  console.log('=== NEXACORE FULL ASSESSMENT REPORT ===');
+  console.log(JSON.stringify(report, (key, val) => {
+    if ((key === 'screenshot' || key === 'data') && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
+    return val;
+  }, 2));
+
+  goToStep(7);
+}
+
+function downloadReport(type) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const w = pdf.internal.pageSize.getWidth();
+  const d = report.diagnostics;
+  const now = new Date();
+  const dev = report.device.mismatch
+    ? `${report.device.confirmed.brand} ${report.device.confirmed.model}`
+    : `${report.device.detected.brand} ${report.device.detected.model}`;
+  const overallResult = type === 'full' ? report.finalResult : report.stage1Result;
+
+  // Colors
+  const dark = [6, 68, 74];
+  const teal = [68, 192, 197];
+  const deepTeal = [17, 127, 132];
+  const passGreen = [16, 185, 129];
+  const failRed = [239, 68, 68];
+  const warnAmber = [245, 158, 11];
+  const gray = [120, 140, 142];
+  const lightBg = [246, 251, 251];
+
+  let y = 0;
+
+  // ---- HEADER BAR ----
+  pdf.setFillColor(...dark);
+  pdf.rect(0, 0, w, 28, 'F');
+  pdf.setFontSize(16);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Nexacore', 15, 12);
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(180, 220, 222);
+  pdf.text('Device Protection Assessment', 15, 19);
+  // Result badge top-right
+  const badgeColor = overallResult === 'pass' ? passGreen : failRed;
+  const badgeText = overallResult === 'pass' ? 'PASS' : 'FAIL';
+  pdf.setFillColor(...badgeColor);
+  pdf.roundedRect(w - 40, 7, 28, 14, 3, 3, 'F');
+  pdf.setFontSize(11);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(badgeText, w - 26, 16, { align: 'center' });
+
+  y = 38;
+
+  // ---- REPORT TITLE ----
+  pdf.setFontSize(13);
+  pdf.setTextColor(...dark);
+  pdf.setFont('helvetica', 'bold');
+  const reportTitle = type === 'full' ? 'Full Assessment Report' : 'Stage 1 Report — Diagnostics & IMEI';
+  pdf.text(reportTitle, 15, y);
+  y += 8;
+
+  // ---- META INFO ----
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...gray);
+  pdf.text(`Reference: ${report.id}`, 15, y);
+  pdf.text(`Date: ${now.toLocaleDateString('en-MY')} ${now.toLocaleTimeString('en-MY', {hour:'2-digit',minute:'2-digit'})}`, w - 15, y, { align: 'right' });
+  y += 5;
+  pdf.text(`Stage: ${type === 'full' ? '2 of 2 (Complete)' : '1 of 2 (Diagnostics)'}`, 15, y);
+  y += 10;
+
+  // ---- DEVICE INFO CARD ----
+  pdf.setFillColor(...lightBg);
+  pdf.roundedRect(15, y, w - 30, 30, 3, 3, 'F');
+  pdf.setDrawColor(224, 237, 237);
+  pdf.roundedRect(15, y, w - 30, 30, 3, 3, 'S');
+  y += 7;
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(...dark);
+  pdf.text('Device Information', 20, y);
+  y += 6;
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...gray);
+  pdf.text(`Device: ${dev}`, 20, y);
+  pdf.text(`Platform: ${report.device.detected.platform}`, w/2 + 10, y);
+  y += 5;
+  pdf.text(`Screen: ${report.device.detected.screen}`, 20, y);
+  pdf.text(`CPU: ${report.device.detected.cpuCores} cores`, w/2 + 10, y);
+  y += 5;
+  pdf.text(`RAM: ${report.device.detected.ram || 'N/A'} GB`, 20, y);
+  pdf.text(`Profile: ${report.device.fingerprint}`, w/2 + 10, y);
+  y += 12;
+
+  // ---- DIAGNOSTIC RESULTS TABLE ----
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(...dark);
+  pdf.text('Diagnostic Results', 15, y);
+  y += 7;
+
+  // Table header
+  pdf.setFillColor(...deepTeal);
+  pdf.rect(15, y, w - 30, 8, 'F');
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(255, 255, 255);
+  pdf.text('CHECK', 20, y + 5.5);
+  pdf.text('STATUS', 80, y + 5.5);
+  pdf.text('DETAILS', 110, y + 5.5);
+  y += 8;
+
+  // Table rows
+  const checks = [
+    { name: 'Device Identity', status: d.identity.status, detail: d.identity.data.brand ? `${d.identity.data.brand} ${d.identity.data.model}` : 'Detected' },
+    { name: 'Cameras', status: d.camera.status, detail: `Front: ${d.camera.data.front ? 'OK' : 'N/A'}, Rear: ${d.camera.data.rear ? 'OK' : 'N/A'}` },
+    { name: 'Sensors', status: d.sensors.status, detail: `Accel: ${d.sensors.data.accelerometer ? 'OK' : 'Fail'}, Gyro: ${d.sensors.data.gyroscope ? 'OK' : 'Fail'}` },
+    { name: 'Microphone', status: d.mic.status, detail: `Level: ${d.mic.data.maxLevel || 'N/A'}, Variance: ${d.mic.data.hasVariance ? 'Yes' : 'No'}` },
+    { name: 'Display', status: d.screen.status, detail: d.screen.data.testMethod === 'skipped' ? 'Skipped by user' : `Edge zones: ${d.screen.data.outerZonesCovered || 0}/8` },
+    { name: 'IMEI Screenshot', status: report.imei && report.imei.screenshot ? 'passed' : 'failed', detail: report.imei && report.imei.timestamp ? `Captured ${new Date(report.imei.timestamp).toLocaleTimeString('en-MY')}` : 'Not captured' }
+  ];
+
+  if (type === 'full') {
+    const photoCount = report.photos ? [report.photos.screen, report.photos.back].filter(Boolean).length : 0;
+    checks.push({ name: 'Condition Photos', status: photoCount >= 2 ? 'passed' : 'failed', detail: `${photoCount} of 2 photos submitted` });
+  }
+
+  checks.forEach((c, i) => {
+    const rowBg = i % 2 === 0 ? [255, 255, 255] : lightBg;
+    pdf.setFillColor(...rowBg);
+    pdf.rect(15, y, w - 30, 8, 'F');
+
+    pdf.setFontSize(8.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(...dark);
+    pdf.text(c.name, 20, y + 5.5);
+
+    // Status badge
+    const sc = c.status === 'passed' ? passGreen : c.status === 'failed' ? failRed : warnAmber;
+    const st = c.status === 'passed' ? 'PASS' : c.status === 'failed' ? 'FAIL' : 'WARN';
+    pdf.setFillColor(...sc);
+    pdf.roundedRect(80, y + 1.5, 18, 5, 1.5, 1.5, 'F');
+    pdf.setFontSize(6.5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(st, 89, y + 5, { align: 'center' });
+
+    pdf.setFontSize(7.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(...gray);
+    pdf.text(c.detail, 110, y + 5.5);
+    y += 8;
+  });
+
+  // Table border
+  pdf.setDrawColor(224, 237, 237);
+  pdf.rect(15, y - (checks.length * 8) - 8, w - 30, (checks.length + 1) * 8, 'S');
+  y += 10;
+
+  // ---- IMEI SCREENSHOT ----
+  if (report.imei && report.imei.screenshot) {
+    // Check if we need a new page
+    if (y > 200) { pdf.addPage(); y = 20; }
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...dark);
+    pdf.text('IMEI Screenshot', 15, y);
+    y += 3;
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(...gray);
+    pdf.text('Captured from device via *#06# dialler', 15, y + 4);
+    y += 8;
+    try {
+      const imgW = 60;
+      const imgH = 100;
+      if (y + imgH > 280) { pdf.addPage(); y = 20; }
+      pdf.addImage(report.imei.screenshot, 'PNG', 15, y, imgW, imgH);
+      pdf.setDrawColor(224, 237, 237);
+      pdf.rect(15, y, imgW, imgH, 'S');
+      y += imgH + 10;
+    } catch (e) {
+      pdf.setFontSize(8);
+      pdf.setTextColor(...gray);
+      pdf.text('(IMEI image could not be embedded)', 15, y);
+      y += 10;
+    }
+  }
+
+  // ---- CONDITION PHOTOS ----
+  const conditionPhotos = [];
+  if (report.photos) {
+    if (report.photos.screen) conditionPhotos.push({ label: 'Screen (Front)', data: report.photos.screen.data });
+    if (report.photos.back) conditionPhotos.push({ label: 'Back', data: report.photos.back.data });
+  }
+  if (type === 'full' && conditionPhotos.length > 0) {
+    if (y > 180) { pdf.addPage(); y = 20; }
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...dark);
+    pdf.text('Condition Photos', 15, y);
+    y += 8;
+    conditionPhotos.forEach((photo, i) => {
+      try {
+        const imgW = 55;
+        const imgH = 70;
+        const xPos = 15 + (i * (imgW + 10));
+        if (xPos + imgW > w - 15) return;
+        if (y + imgH > 280) { pdf.addPage(); y = 20; }
+        pdf.addImage(photo.data, 'JPEG', xPos, y, imgW, imgH);
+        pdf.setDrawColor(224, 237, 237);
+        pdf.rect(xPos, y, imgW, imgH, 'S');
+        // Label under photo
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(...gray);
+        pdf.text(photo.label, xPos + imgW/2, y + imgH + 4, { align: 'center' });
+      } catch(e) { /* skip unembeddable photo */ }
+    });
+    y += 80;
+  }
+
+  // ---- FOOTER ----
+  const pageCount = pdf.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    pdf.setPage(p);
+    const ph = pdf.internal.pageSize.getHeight();
+    pdf.setFillColor(...dark);
+    pdf.rect(0, ph - 14, w, 14, 'F');
+    pdf.setFontSize(7);
+    pdf.setTextColor(180, 220, 222);
+    pdf.text('Nexacore Device Protection', 15, ph - 5);
+    pdf.text(`${report.id} | Page ${p} of ${pageCount}`, w - 15, ph - 5, { align: 'right' });
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(6);
+    pdf.text('CONFIDENTIAL — For insurer policy file use only', w/2, ph - 5, { align: 'center' });
+  }
+
+  // Save
+  const filename = `nexacore-${type === 'full' ? 'full' : 'stage1'}-${report.id}.pdf`;
+  pdf.save(filename);
+}
+
+function finishCheck() {
+  alert('Assessment complete.\n\nReference: ' + report.id + '\n\nIn production, this report would be submitted to the Nexacore platform and linked to the policy.\n\nFull diagnostic report has been logged to console.');
+}
+
+// ===================== UTILS =====================
+function setTag(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (status === 'passed') { el.className = 'result-tag pass'; el.textContent = 'PASS'; }
+  else if (status === 'failed') { el.className = 'result-tag fail'; el.textContent = 'FAIL'; }
+  else if (status === 'pending') { el.className = 'result-tag pending'; el.textContent = 'PENDING'; }
+  else { el.className = 'result-tag warn'; el.textContent = 'WARN'; }
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>

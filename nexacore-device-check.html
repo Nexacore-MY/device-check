@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nexacore Device Check</title>
+<style>
+  :root {
+    --primary: #0F2B46;
+    --accent: #00B4D8;
+    --accent-light: #90E0EF;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+    --bg: #F8FAFC;
+    --card: #FFFFFF;
+    --text: #1E293B;
+    --text-light: #64748B;
+    --border: #E2E8F0;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    background: var(--primary);
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-logo {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+    opacity: 0.7;
+    font-weight: 400;
+  }
+
+  /* Progress Bar */
+  .progress-bar {
+    background: var(--border);
+    height: 4px;
+    width: 100%;
+  }
+
+  .progress-fill {
+    background: var(--accent);
+    height: 100%;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  /* Steps indicator */
+  .steps-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 20px 8px;
+  }
+
+  .step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s ease;
+  }
+
+  .step-dot.active {
+    background: var(--accent);
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  .step-dot.done {
+    background: var(--success);
+  }
+
+  /* Screen container */
+  .screen {
+    display: none;
+    flex: 1;
+    padding: 20px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .screen.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Welcome Screen */
+  .welcome-hero {
+    text-align: center;
+    padding: 40px 0 30px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .welcome-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--accent), var(--primary));
+    border-radius: 20px;
+    margin: 0 auto 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+  }
+
+  .welcome-hero h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .welcome-hero p {
+    color: var(--text-light);
+    font-size: 15px;
+    line-height: 1.5;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .welcome-features {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .feature-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #EFF6FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .feature-item span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .card-desc {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.4;
+  }
+
+  /* Section headings */
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+
+  .section-desc {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* Form inputs */
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .form-input, .form-select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--text);
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2364748B' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+  }
+
+  .form-hint {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 6px;
+  }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--primary);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-light);
+  }
+
+  .btn-primary:disabled {
+    background: var(--border);
+    color: var(--text-light);
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-light);
+    border: 2px solid var(--border);
+  }
+
+  .btn-success {
+    background: var(--success);
+    color: white;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 20px;
+  }
+
+  .btn-group .btn {
+    flex: 1;
+  }
+
+  .btn-bottom {
+    margin-top: auto;
+    padding-top: 20px;
+  }
+
+  /* IMEI Input */
+  .imei-input {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 20px;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  .imei-tip {
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .imei-tip-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  /* IMEI Status */
+  .imei-status {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--radius);
+    margin-top: 12px;
+  }
+
+  .imei-status.checking {
+    display: flex;
+    background: #EFF6FF;
+    color: #1D4ED8;
+  }
+
+  .imei-status.pass {
+    display: flex;
+    background: #F0FDF4;
+    color: #15803D;
+  }
+
+  .imei-status.fail {
+    display: flex;
+    background: #FEF2F2;
+    color: #DC2626;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Diagnostic Tests */
+  .test-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .test-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+
+  .test-item.running {
+    border-color: var(--accent);
+    background: #F0F9FF;
+  }
+
+  .test-item.passed {
+    border-color: var(--success);
+    background: #F0FDF4;
+  }
+
+  .test-item.failed {
+    border-color: var(--danger);
+    background: #FEF2F2;
+  }
+
+  .test-item.skipped {
+    border-color: var(--warning);
+    background: #FFFBEB;
+  }
+
+  .test-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .test-info {
+    flex: 1;
+  }
+
+  .test-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  .test-detail {
+    font-size: 12px;
+    color: var(--text-light);
+  }
+
+  .test-status {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  /* Touch Test */
+  .touch-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 4px;
+    width: 100%;
+    aspect-ratio: 3/4;
+    margin: 16px 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 2px solid var(--border);
+    touch-action: none;
+  }
+
+  .touch-cell {
+    background: var(--bg);
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .touch-cell.touched {
+    background: var(--accent);
+  }
+
+  .touch-progress-text {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+  }
+
+  /* Camera Test */
+  .camera-container {
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    margin: 16px 0;
+  }
+
+  .camera-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .camera-overlay {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+  }
+
+  .camera-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 3px solid white;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: white;
+    transition: all 0.2s;
+  }
+
+  .camera-btn:hover {
+    background: rgba(255,255,255,0.4);
+  }
+
+  .camera-switch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: rgba(255,255,255,0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  /* Photo Upload */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .photo-slot {
+    aspect-ratio: 3/4;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--card);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .photo-slot:hover {
+    border-color: var(--accent);
+    background: #F0F9FF;
+  }
+
+  .photo-slot.captured {
+    border-style: solid;
+    border-color: var(--success);
+  }
+
+  .photo-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .photo-slot-icon {
+    font-size: 28px;
+    opacity: 0.5;
+  }
+
+  .photo-slot-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-light);
+    text-align: center;
+  }
+
+  .photo-slot .photo-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    background: var(--success);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  /* Results Screen */
+  .result-badge {
+    text-align: center;
+    padding: 32px 0;
+  }
+
+  .result-icon {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 44px;
+  }
+
+  .result-icon.pass {
+    background: #D1FAE5;
+    color: var(--success);
+  }
+
+  .result-icon.fail {
+    background: #FEE2E2;
+    color: var(--danger);
+  }
+
+  .result-title {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .result-subtitle {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-top: 4px;
+  }
+
+  /* Result breakdown */
+  .result-breakdown {
+    margin-top: 8px;
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-row:last-child {
+    border-bottom: none;
+  }
+
+  .result-row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .result-row-icon {
+    font-size: 18px;
+  }
+
+  .result-row-label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .result-tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .result-tag.pass {
+    background: #D1FAE5;
+    color: #065F46;
+  }
+
+  .result-tag.fail {
+    background: #FEE2E2;
+    color: #991B1B;
+  }
+
+  .result-tag.warn {
+    background: #FEF3C7;
+    color: #92400E;
+  }
+
+  /* Reference ID */
+  .ref-id {
+    text-align: center;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius);
+    margin-top: 16px;
+  }
+
+  .ref-id-label {
+    font-size: 11px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .ref-id-value {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 1px;
+  }
+
+  .timestamp {
+    font-size: 12px;
+    color: var(--text-light);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* Hidden file input */
+  .hidden-input {
+    display: none;
+  }
+
+  /* Fullscreen test overlay */
+  .test-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: white;
+    z-index: 200;
+    flex-direction: column;
+  }
+
+  .test-overlay.active {
+    display: flex;
+  }
+
+  .test-overlay-header {
+    padding: 16px 20px;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .test-overlay-title {
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .test-overlay-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .test-overlay-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: auto;
+  }
+
+  /* Speaker test */
+  .speaker-test-btn {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 4px solid var(--accent);
+    background: #F0F9FF;
+    margin: 40px auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    gap: 4px;
+  }
+
+  .speaker-test-btn:active {
+    transform: scale(0.95);
+    background: var(--accent);
+    color: white;
+  }
+
+  .speaker-test-btn .icon {
+    font-size: 36px;
+  }
+
+  .speaker-test-btn .label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-light);
+  }
+
+  .speaker-confirm {
+    display: flex;
+    gap: 12px;
+    margin-top: auto;
+  }
+
+  .speaker-confirm .btn {
+    flex: 1;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">N</div>
+    <div>
+      <div class="header-title">Device Check</div>
+      <div class="header-subtitle">by Nexacore</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- Steps Indicator -->
+  <div class="steps-indicator" id="stepsIndicator">
+    <div class="step-dot active" data-step="0"></div>
+    <div class="step-dot" data-step="1"></div>
+    <div class="step-dot" data-step="2"></div>
+    <div class="step-dot" data-step="3"></div>
+    <div class="step-dot" data-step="4"></div>
+    <div class="step-dot" data-step="5"></div>
+  </div>
+
+  <!-- Screen 0: Welcome -->
+  <div class="screen active" id="screen-0">
+    <div class="welcome-hero">
+      <div class="welcome-icon">📱</div>
+      <h1>Device Check</h1>
+      <p>Quick pre-insurance assessment for your device. Takes about 3 minutes.</p>
+      <div class="welcome-features">
+        <div class="feature-item">
+          <div class="feature-icon">🔍</div>
+          <span>Device identity verification</span>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">⚙️</div>
+          <span>Hardware diagnostics</span>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">📸</div>
+          <span>Physical condition capture</span>
+        </div>
+      </div>
+    </div>
+    <div class="btn-bottom">
+      <button class="btn btn-primary" onclick="goToStep(1)">Start Device Check →</button>
+    </div>
+  </div>
+
+  <!-- Screen 1: Device Info -->
+  <div class="screen" id="screen-1">
+    <h2 class="section-title">Device Information</h2>
+    <p class="section-desc">Tell us about your device.</p>
+
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <select class="form-select" id="deviceBrand" onchange="updateModels()">
+          <option value="">Select brand</option>
+          <option value="samsung">Samsung</option>
+          <option value="apple">Apple</option>
+          <option value="huawei">Huawei</option>
+          <option value="xiaomi">Xiaomi</option>
+          <option value="oppo">OPPO</option>
+          <option value="vivo">Vivo</option>
+          <option value="realme">Realme</option>
+          <option value="oneplus">OnePlus</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Model</label>
+        <select class="form-select" id="deviceModel">
+          <option value="">Select model</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Storage</label>
+        <select class="form-select" id="deviceStorage">
+          <option value="">Select storage</option>
+          <option value="32">32 GB</option>
+          <option value="64">64 GB</option>
+          <option value="128">128 GB</option>
+          <option value="256">256 GB</option>
+          <option value="512">512 GB</option>
+          <option value="1024">1 TB</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="detectedInfo" style="display:none" class="card">
+      <div class="card-title">Auto-detected</div>
+      <div class="card-desc" id="detectedText"></div>
+    </div>
+
+    <div class="btn-bottom">
+      <button class="btn btn-primary" id="btnDeviceNext" onclick="goToStep(2)" disabled>Continue →</button>
+    </div>
+  </div>
+
+  <!-- Screen 2: IMEI Check -->
+  <div class="screen" id="screen-2">
+    <h2 class="section-title">IMEI Verification</h2>
+    <p class="section-desc">We need your device's IMEI to verify its identity and check its status.</p>
+
+    <div class="imei-tip">
+      <span class="imei-tip-icon">💡</span>
+      <div>
+        <strong>How to find your IMEI:</strong><br>
+        Dial <strong>*#06#</strong> on your phone, or check Settings → About Phone.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label class="form-label">IMEI Number</label>
+        <input type="tel" class="form-input imei-input" id="imeiInput"
+               placeholder="000000000000000" maxlength="15"
+               oninput="validateIMEI()">
+        <div class="form-hint">15-digit number unique to your device</div>
+      </div>
+
+      <div class="imei-status" id="imeiStatus">
+        <div class="spinner" id="imeiSpinner"></div>
+        <span id="imeiStatusText"></span>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+      <button class="btn btn-primary" id="btnImeiNext" onclick="checkIMEI()" disabled>Verify IMEI</button>
+    </div>
+  </div>
+
+  <!-- Screen 3: Hardware Diagnostics -->
+  <div class="screen" id="screen-3">
+    <h2 class="section-title">Hardware Diagnostics</h2>
+    <p class="section-desc">We'll run a few quick tests on your device hardware.</p>
+
+    <div class="test-list" id="testList">
+      <div class="test-item" id="test-battery">
+        <div class="test-icon">🔋</div>
+        <div class="test-info">
+          <div class="test-name">Battery Health</div>
+          <div class="test-detail">Checking battery status...</div>
+        </div>
+        <div class="test-status">⏳</div>
+      </div>
+
+      <div class="test-item" id="test-touch">
+        <div class="test-icon">👆</div>
+        <div class="test-info">
+          <div class="test-name">Touchscreen</div>
+          <div class="test-detail">Tap to start test</div>
+        </div>
+        <div class="test-status">⏳</div>
+      </div>
+
+      <div class="test-item" id="test-camera">
+        <div class="test-icon">📷</div>
+        <div class="test-info">
+          <div class="test-name">Camera</div>
+          <div class="test-detail">Tap to test camera</div>
+        </div>
+        <div class="test-status">⏳</div>
+      </div>
+
+      <div class="test-item" id="test-speaker">
+        <div class="test-icon">🔊</div>
+        <div class="test-info">
+          <div class="test-name">Speaker</div>
+          <div class="test-detail">Tap to test speaker</div>
+        </div>
+        <div class="test-status">⏳</div>
+      </div>
+    </div>
+
+    <div class="btn-group" id="diagButtons" style="display:none">
+      <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+      <button class="btn btn-primary" onclick="goToStep(4)">Continue →</button>
+    </div>
+
+    <div class="btn-bottom" id="startDiagBtn">
+      <button class="btn btn-primary" onclick="startDiagnostics()">Run Diagnostics</button>
+    </div>
+  </div>
+
+  <!-- Screen 4: Physical Condition Photos -->
+  <div class="screen" id="screen-4">
+    <h2 class="section-title">Physical Condition</h2>
+    <p class="section-desc">Take photos of your device to document its current condition.</p>
+
+    <div class="photo-grid">
+      <div class="photo-slot" id="photo-front" onclick="capturePhoto('front')">
+        <span class="photo-slot-icon">📱</span>
+        <span class="photo-slot-label">Front / Screen</span>
+      </div>
+      <div class="photo-slot" id="photo-back" onclick="capturePhoto('back')">
+        <span class="photo-slot-icon">📱</span>
+        <span class="photo-slot-label">Back</span>
+      </div>
+      <div class="photo-slot" id="photo-left" onclick="capturePhoto('left')">
+        <span class="photo-slot-icon">📐</span>
+        <span class="photo-slot-label">Left Side</span>
+      </div>
+      <div class="photo-slot" id="photo-right" onclick="capturePhoto('right')">
+        <span class="photo-slot-icon">📐</span>
+        <span class="photo-slot-label">Right Side</span>
+      </div>
+    </div>
+
+    <div id="photoCount" class="form-hint" style="text-align:center; margin-bottom:12px;">
+      0 of 4 photos captured
+    </div>
+
+    <div class="card">
+      <div class="card-title">Photo Tips</div>
+      <div class="card-desc" style="margin-bottom:0">
+        • Ensure good lighting<br>
+        • Capture any existing damage clearly<br>
+        • Hold phone steady, avoid blur<br>
+        • Include all edges and corners
+      </div>
+    </div>
+
+    <input type="file" accept="image/*" capture="environment" class="hidden-input" id="photoInput" onchange="handlePhoto(event)">
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+      <button class="btn btn-primary" id="btnPhotoNext" onclick="goToStep(5)" disabled>Continue →</button>
+    </div>
+  </div>
+
+  <!-- Screen 5: Results -->
+  <div class="screen" id="screen-5">
+    <div class="result-badge" id="resultBadge">
+      <div class="result-icon pass" id="resultIcon">✓</div>
+      <div class="result-title" id="resultTitle">Device Approved</div>
+      <div class="result-subtitle" id="resultSubtitle">This device is eligible for protection coverage.</div>
+    </div>
+
+    <div class="card result-breakdown">
+      <div class="card-title" style="margin-bottom:12px;">Assessment Summary</div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🆔</span>
+          <span class="result-row-label">IMEI Verification</span>
+        </div>
+        <span class="result-tag pass" id="res-imei">PASS</span>
+      </div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🔋</span>
+          <span class="result-row-label">Battery Health</span>
+        </div>
+        <span class="result-tag pass" id="res-battery">PASS</span>
+      </div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">👆</span>
+          <span class="result-row-label">Touchscreen</span>
+        </div>
+        <span class="result-tag pass" id="res-touch">PASS</span>
+      </div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📷</span>
+          <span class="result-row-label">Camera</span>
+        </div>
+        <span class="result-tag pass" id="res-camera">PASS</span>
+      </div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">🔊</span>
+          <span class="result-row-label">Speaker</span>
+        </div>
+        <span class="result-tag pass" id="res-speaker">PASS</span>
+      </div>
+
+      <div class="result-row">
+        <div class="result-row-left">
+          <span class="result-row-icon">📸</span>
+          <span class="result-row-label">Physical Condition</span>
+        </div>
+        <span class="result-tag pass" id="res-physical">PASS</span>
+      </div>
+    </div>
+
+    <div class="ref-id">
+      <div class="ref-id-label">Assessment Reference</div>
+      <div class="ref-id-value" id="refId">NC-000000</div>
+    </div>
+    <div class="timestamp" id="timestamp"></div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" style="margin-bottom:4px">Device Details</div>
+      <div class="card-desc" id="resultDeviceInfo" style="margin-bottom:0"></div>
+    </div>
+
+    <div class="btn-bottom">
+      <button class="btn btn-success" onclick="finishCheck()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Touch Test Overlay -->
+<div class="test-overlay" id="touchOverlay">
+  <div class="test-overlay-header">
+    <span class="test-overlay-title">Touchscreen Test</span>
+    <button class="test-overlay-close" onclick="cancelTouchTest()">✕</button>
+  </div>
+  <div class="test-overlay-body">
+    <p class="touch-progress-text" id="touchProgressText">Tap or swipe across all cells (0/16)</p>
+    <div class="touch-grid" id="touchGrid"></div>
+    <p style="text-align:center; font-size:13px; color:var(--text-light);">Swipe your finger across all cells to test the entire screen.</p>
+  </div>
+</div>
+
+<!-- Camera Test Overlay -->
+<div class="test-overlay" id="cameraOverlay">
+  <div class="test-overlay-header">
+    <span class="test-overlay-title">Camera Test</span>
+    <button class="test-overlay-close" onclick="closeCameraTest()">✕</button>
+  </div>
+  <div class="test-overlay-body">
+    <p style="text-align:center; color:var(--text-light); margin-bottom:8px;">Verify that the camera feed is clear and functional.</p>
+    <div class="camera-container">
+      <video id="cameraFeed" autoplay playsinline muted></video>
+      <button class="camera-switch" onclick="switchCamera()" title="Switch camera">🔄</button>
+    </div>
+    <div class="speaker-confirm" style="margin-top:16px;">
+      <button class="btn btn-secondary" onclick="closeCameraTest()">Camera Not Working</button>
+      <button class="btn btn-primary" onclick="passCameraTest()">Camera Works ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- Speaker Test Overlay -->
+<div class="test-overlay" id="speakerOverlay">
+  <div class="test-overlay-header">
+    <span class="test-overlay-title">Speaker Test</span>
+    <button class="test-overlay-close" onclick="closeSpeakerTest(false)">✕</button>
+  </div>
+  <div class="test-overlay-body">
+    <p style="text-align:center; color:var(--text-light);">Tap the button below to play a test sound. Confirm whether you can hear it.</p>
+    <div class="speaker-test-btn" onclick="playTestSound()">
+      <span class="icon">🔊</span>
+      <span class="label">Play Sound</span>
+    </div>
+    <div class="speaker-confirm">
+      <button class="btn btn-secondary" onclick="closeSpeakerTest(false)">No Sound</button>
+      <button class="btn btn-primary" onclick="closeSpeakerTest(true)">I Heard It ✓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ==================== STATE ====================
+  const state = {
+    step: 0,
+    device: { brand: '', model: '', storage: '' },
+    imei: '',
+    imeiPass: false,
+    battery: { level: 0, charging: false, health: 'unknown' },
+    tests: {
+      battery: 'pending',
+      touch: 'pending',
+      camera: 'pending',
+      speaker: 'pending'
+    },
+    photos: { front: null, back: null, left: null, right: null },
+    photoCount: 0,
+    currentPhotoSlot: null,
+    cameraStream: null,
+    cameraFacing: 'environment'
+  };
+
+  // ==================== MODEL DATA ====================
+  const models = {
+    samsung: ['Galaxy S24 Ultra','Galaxy S24+','Galaxy S24','Galaxy S23 Ultra','Galaxy S23','Galaxy A54','Galaxy A34','Galaxy A14','Galaxy Z Fold5','Galaxy Z Flip5'],
+    apple: ['iPhone 15 Pro Max','iPhone 15 Pro','iPhone 15','iPhone 14 Pro Max','iPhone 14','iPhone 13','iPhone 12','iPhone SE (2022)'],
+    huawei: ['P60 Pro','P50 Pro','Mate 50 Pro','Nova 11','Nova 10'],
+    xiaomi: ['14 Pro','13 Ultra','13 Pro','Redmi Note 13','Redmi Note 12','Poco X6 Pro'],
+    oppo: ['Find X7 Ultra','Find X6 Pro','Reno 11 Pro','A98','A78'],
+    vivo: ['X100 Pro','V30 Pro','V29','Y100','Y36'],
+    realme: ['GT5 Pro','12 Pro+','Narzo 60 Pro','C55'],
+    oneplus: ['12','11','Nord 3','Nord CE 3'],
+    other: ['Other Model']
+  };
+
+  // ==================== NAVIGATION ====================
+  function goToStep(n) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(`screen-${n}`).classList.add('active');
+
+    // Update dots
+    document.querySelectorAll('.step-dot').forEach((dot, i) => {
+      dot.classList.remove('active', 'done');
+      if (i === n) dot.classList.add('active');
+      else if (i < n) dot.classList.add('done');
+    });
+
+    // Update progress
+    document.getElementById('progressFill').style.width = `${(n / 5) * 100}%`;
+
+    state.step = n;
+
+    if (n === 5) generateResults();
+  }
+
+  // ==================== DEVICE INFO ====================
+  function updateModels() {
+    const brand = document.getElementById('deviceBrand').value;
+    const modelSelect = document.getElementById('deviceModel');
+    modelSelect.innerHTML = '<option value="">Select model</option>';
+
+    if (brand && models[brand]) {
+      models[brand].forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        modelSelect.appendChild(opt);
+      });
+    }
+
+    state.device.brand = brand;
+    checkDeviceForm();
+  }
+
+  function checkDeviceForm() {
+    state.device.model = document.getElementById('deviceModel').value;
+    state.device.storage = document.getElementById('deviceStorage').value;
+    const ready = state.device.brand && state.device.model && state.device.storage;
+    document.getElementById('btnDeviceNext').disabled = !ready;
+  }
+
+  // Attach listeners
+  document.getElementById('deviceModel').addEventListener('change', checkDeviceForm);
+  document.getElementById('deviceStorage').addEventListener('change', checkDeviceForm);
+
+  // Try auto-detect
+  (function detectDevice() {
+    const ua = navigator.userAgent;
+    const el = document.getElementById('detectedInfo');
+    const txt = document.getElementById('detectedText');
+    let info = [];
+
+    if (/iPhone/.test(ua)) info.push('iPhone detected');
+    else if (/Samsung/.test(ua)) info.push('Samsung device detected');
+    else if (/Huawei/.test(ua)) info.push('Huawei device detected');
+
+    if (navigator.platform) info.push(`Platform: ${navigator.platform}`);
+
+    if (info.length) {
+      txt.textContent = info.join(' · ');
+      el.style.display = 'block';
+    }
+  })();
+
+  // ==================== IMEI CHECK ====================
+  function validateIMEI() {
+    const val = document.getElementById('imeiInput').value.replace(/\D/g, '');
+    document.getElementById('imeiInput').value = val;
+    document.getElementById('btnImeiNext').disabled = val.length !== 15;
+  }
+
+  function checkIMEI() {
+    const imei = document.getElementById('imeiInput').value;
+    if (imei.length !== 15) return;
+
+    state.imei = imei;
+    const status = document.getElementById('imeiStatus');
+    const text = document.getElementById('imeiStatusText');
+    const spinner = document.getElementById('imeiSpinner');
+    const btn = document.getElementById('btnImeiNext');
+
+    status.className = 'imei-status checking';
+    text.textContent = 'Checking IMEI against database...';
+    spinner.style.display = 'block';
+    btn.disabled = true;
+
+    // Simulate API call
+    setTimeout(() => {
+      // Demo: fail if IMEI starts with 000, otherwise pass
+      const blacklisted = imei.startsWith('000');
+
+      if (blacklisted) {
+        status.className = 'imei-status fail';
+        text.textContent = '✕ Device reported as lost/stolen. Cannot proceed with coverage.';
+        spinner.style.display = 'none';
+        state.imeiPass = false;
+        btn.textContent = 'IMEI Blocked';
+        btn.disabled = true;
+      } else {
+        status.className = 'imei-status pass';
+        text.textContent = '✓ IMEI verified. Device not blacklisted.';
+        spinner.style.display = 'none';
+        state.imeiPass = true;
+        btn.textContent = 'Continue →';
+        btn.disabled = false;
+        btn.onclick = () => goToStep(3);
+      }
+    }, 2000);
+  }
+
+  // ==================== HARDWARE DIAGNOSTICS ====================
+  async function startDiagnostics() {
+    document.getElementById('startDiagBtn').style.display = 'none';
+    await runBatteryTest();
+    setupTouchTest();
+  }
+
+  // Battery Test
+  async function runBatteryTest() {
+    const item = document.getElementById('test-battery');
+    item.className = 'test-item running';
+    item.querySelector('.test-detail').textContent = 'Reading battery data...';
+
+    await delay(1500);
+
+    try {
+      if ('getBattery' in navigator) {
+        const battery = await navigator.getBattery();
+        state.battery.level = Math.round(battery.level * 100);
+        state.battery.charging = battery.charging;
+        // Battery API doesn't expose health directly, simulate for demo
+        state.battery.health = state.battery.level > 20 ? 'Good' : 'Low';
+        state.tests.battery = 'passed';
+        item.className = 'test-item passed';
+        item.querySelector('.test-detail').textContent = `${state.battery.level}% · ${state.battery.charging ? 'Charging' : 'Not charging'} · Health: ${state.battery.health}`;
+        item.querySelector('.test-status').textContent = '✅';
+      } else {
+        // Simulate for iOS/browsers without Battery API
+        state.battery.level = 78;
+        state.battery.health = 'Good';
+        state.tests.battery = 'passed';
+        item.className = 'test-item passed';
+        item.querySelector('.test-detail').textContent = `Estimated 78% · Health: Good`;
+        item.querySelector('.test-status').textContent = '✅';
+      }
+    } catch (e) {
+      state.tests.battery = 'skipped';
+      item.className = 'test-item skipped';
+      item.querySelector('.test-detail').textContent = 'Could not read battery (browser restricted)';
+      item.querySelector('.test-status').textContent = '⚠️';
+    }
+  }
+
+  // Touch Test
+  function setupTouchTest() {
+    const item = document.getElementById('test-touch');
+    item.className = 'test-item';
+    item.querySelector('.test-detail').textContent = 'Tap to start touchscreen test';
+    item.style.cursor = 'pointer';
+    item.onclick = () => openTouchTest();
+  }
+
+  function openTouchTest() {
+    const overlay = document.getElementById('touchOverlay');
+    overlay.classList.add('active');
+
+    const grid = document.getElementById('touchGrid');
+    grid.innerHTML = '';
+
+    let touched = 0;
+    const total = 16;
+
+    for (let i = 0; i < total; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'touch-cell';
+      cell.dataset.index = i;
+
+      const markTouched = (e) => {
+        e.preventDefault();
+        if (!cell.classList.contains('touched')) {
+          cell.classList.add('touched');
+          touched++;
+          document.getElementById('touchProgressText').textContent = `Tap or swipe across all cells (${touched}/${total})`;
+
+          if (touched >= total) {
+            setTimeout(() => {
+              overlay.classList.remove('active');
+              state.tests.touch = 'passed';
+              const item = document.getElementById('test-touch');
+              item.className = 'test-item passed';
+              item.querySelector('.test-detail').textContent = 'All screen zones responsive';
+              item.querySelector('.test-status').textContent = '✅';
+              item.onclick = null;
+              item.style.cursor = 'default';
+              setupCameraTest();
+            }, 400);
+          }
+        }
+      };
+
+      cell.addEventListener('touchstart', markTouched, { passive: false });
+      cell.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (el && el.classList.contains('touch-cell') && !el.classList.contains('touched')) {
+          el.classList.add('touched');
+          touched++;
+          document.getElementById('touchProgressText').textContent = `Tap or swipe across all cells (${touched}/${total})`;
+          if (touched >= total) {
+            setTimeout(() => {
+              overlay.classList.remove('active');
+              state.tests.touch = 'passed';
+              const item = document.getElementById('test-touch');
+              item.className = 'test-item passed';
+              item.querySelector('.test-detail').textContent = 'All screen zones responsive';
+              item.querySelector('.test-status').textContent = '✅';
+              item.onclick = null;
+              item.style.cursor = 'default';
+              setupCameraTest();
+            }, 400);
+          }
+        }
+      }, { passive: false });
+
+      cell.addEventListener('mousedown', markTouched);
+      grid.appendChild(cell);
+    }
+  }
+
+  function cancelTouchTest() {
+    document.getElementById('touchOverlay').classList.remove('active');
+    state.tests.touch = 'failed';
+    const item = document.getElementById('test-touch');
+    item.className = 'test-item failed';
+    item.querySelector('.test-detail').textContent = 'Test cancelled — marked as failed';
+    item.querySelector('.test-status').textContent = '❌';
+    item.onclick = null;
+    item.style.cursor = 'default';
+    setupCameraTest();
+  }
+
+  // Camera Test
+  function setupCameraTest() {
+    const item = document.getElementById('test-camera');
+    item.querySelector('.test-detail').textContent = 'Tap to test camera';
+    item.style.cursor = 'pointer';
+    item.onclick = () => openCameraTest();
+  }
+
+  async function openCameraTest() {
+    document.getElementById('cameraOverlay').classList.add('active');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: state.cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      state.cameraStream = stream;
+      document.getElementById('cameraFeed').srcObject = stream;
+    } catch (e) {
+      // Camera not available
+      closeCameraTest();
+      state.tests.camera = 'failed';
+      const item = document.getElementById('test-camera');
+      item.className = 'test-item failed';
+      item.querySelector('.test-detail').textContent = 'Camera not accessible';
+      item.querySelector('.test-status').textContent = '❌';
+      item.onclick = null;
+      item.style.cursor = 'default';
+      setupSpeakerTest();
+    }
+  }
+
+  async function switchCamera() {
+    if (state.cameraStream) {
+      state.cameraStream.getTracks().forEach(t => t.stop());
+    }
+    state.cameraFacing = state.cameraFacing === 'environment' ? 'user' : 'environment';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: state.cameraFacing }
+      });
+      state.cameraStream = stream;
+      document.getElementById('cameraFeed').srcObject = stream;
+    } catch (e) {}
+  }
+
+  function passCameraTest() {
+    if (state.cameraStream) state.cameraStream.getTracks().forEach(t => t.stop());
+    document.getElementById('cameraOverlay').classList.remove('active');
+    state.tests.camera = 'passed';
+    const item = document.getElementById('test-camera');
+    item.className = 'test-item passed';
+    item.querySelector('.test-detail').textContent = 'Front & rear cameras functional';
+    item.querySelector('.test-status').textContent = '✅';
+    item.onclick = null;
+    item.style.cursor = 'default';
+    setupSpeakerTest();
+  }
+
+  function closeCameraTest() {
+    if (state.cameraStream) state.cameraStream.getTracks().forEach(t => t.stop());
+    document.getElementById('cameraOverlay').classList.remove('active');
+    if (state.tests.camera === 'pending') {
+      state.tests.camera = 'failed';
+      const item = document.getElementById('test-camera');
+      item.className = 'test-item failed';
+      item.querySelector('.test-detail').textContent = 'Camera test failed';
+      item.querySelector('.test-status').textContent = '❌';
+      item.onclick = null;
+      item.style.cursor = 'default';
+      setupSpeakerTest();
+    }
+  }
+
+  // Speaker Test
+  function setupSpeakerTest() {
+    const item = document.getElementById('test-speaker');
+    item.querySelector('.test-detail').textContent = 'Tap to test speaker';
+    item.style.cursor = 'pointer';
+    item.onclick = () => openSpeakerTest();
+  }
+
+  function openSpeakerTest() {
+    document.getElementById('speakerOverlay').classList.add('active');
+  }
+
+  function playTestSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      gain.gain.value = 0.3;
+      oscillator.start();
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
+      oscillator.stop(ctx.currentTime + 1);
+    } catch (e) {}
+  }
+
+  function closeSpeakerTest(heard) {
+    document.getElementById('speakerOverlay').classList.remove('active');
+    const item = document.getElementById('test-speaker');
+
+    if (heard) {
+      state.tests.speaker = 'passed';
+      item.className = 'test-item passed';
+      item.querySelector('.test-detail').textContent = 'Speaker working normally';
+      item.querySelector('.test-status').textContent = '✅';
+    } else {
+      state.tests.speaker = 'failed';
+      item.className = 'test-item failed';
+      item.querySelector('.test-detail').textContent = 'Speaker test failed';
+      item.querySelector('.test-status').textContent = '❌';
+    }
+
+    item.onclick = null;
+    item.style.cursor = 'default';
+
+    // Show continue buttons
+    document.getElementById('diagButtons').style.display = 'flex';
+  }
+
+  // ==================== PHOTO CAPTURE ====================
+  function capturePhoto(slot) {
+    state.currentPhotoSlot = slot;
+    document.getElementById('photoInput').click();
+  }
+
+  function handlePhoto(event) {
+    const file = event.target.files[0];
+    if (!file || !state.currentPhotoSlot) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const slot = state.currentPhotoSlot;
+      state.photos[slot] = e.target.result;
+
+      const el = document.getElementById(`photo-${slot}`);
+      // Add image preview
+      const existingImg = el.querySelector('img');
+      if (existingImg) existingImg.remove();
+
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      el.appendChild(img);
+
+      el.classList.add('captured');
+
+      // Add check mark
+      if (!el.querySelector('.photo-check')) {
+        const check = document.createElement('div');
+        check.className = 'photo-check';
+        check.textContent = '✓';
+        el.appendChild(check);
+      }
+
+      // Count photos
+      state.photoCount = Object.values(state.photos).filter(p => p !== null).length;
+      document.getElementById('photoCount').textContent = `${state.photoCount} of 4 photos captured`;
+
+      // Enable continue if at least 2 photos (front + back minimum)
+      const hasRequired = state.photos.front && state.photos.back;
+      document.getElementById('btnPhotoNext').disabled = !hasRequired;
+
+      // Reset input
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ==================== RESULTS ====================
+  function generateResults() {
+    const testResults = state.tests;
+    const allTests = Object.values(testResults);
+    const failedCount = allTests.filter(t => t === 'failed').length;
+    const criticalFail = !state.imeiPass || failedCount >= 2;
+
+    // Overall result
+    const icon = document.getElementById('resultIcon');
+    const title = document.getElementById('resultTitle');
+    const subtitle = document.getElementById('resultSubtitle');
+
+    if (criticalFail) {
+      icon.className = 'result-icon fail';
+      icon.textContent = '✕';
+      title.textContent = 'Device Not Eligible';
+      subtitle.textContent = 'This device did not pass the minimum requirements for protection coverage.';
+    } else {
+      icon.className = 'result-icon pass';
+      icon.textContent = '✓';
+      title.textContent = 'Device Approved';
+      subtitle.textContent = 'This device is eligible for protection coverage.';
+    }
+
+    // Individual results
+    setResultTag('res-imei', state.imeiPass ? 'pass' : 'fail');
+    setResultTag('res-battery', testResults.battery === 'passed' ? 'pass' : testResults.battery === 'skipped' ? 'warn' : 'fail');
+    setResultTag('res-touch', testResults.touch === 'passed' ? 'pass' : 'fail');
+    setResultTag('res-camera', testResults.camera === 'passed' ? 'pass' : 'fail');
+    setResultTag('res-speaker', testResults.speaker === 'passed' ? 'pass' : 'fail');
+    setResultTag('res-physical', state.photoCount >= 2 ? 'pass' : 'fail');
+
+    // Reference ID
+    const refId = 'NC-' + Date.now().toString(36).toUpperCase().slice(-6);
+    document.getElementById('refId').textContent = refId;
+
+    // Timestamp
+    const now = new Date();
+    document.getElementById('timestamp').textContent =
+      `Assessed ${now.toLocaleDateString('en-MY')} at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}`;
+
+    // Device info
+    const brandLabel = document.getElementById('deviceBrand').options[document.getElementById('deviceBrand').selectedIndex].text;
+    document.getElementById('resultDeviceInfo').innerHTML =
+      `${brandLabel} ${state.device.model}<br>Storage: ${state.device.storage} GB<br>IMEI: ${state.imei.replace(/(\d{4})/g, '$1 ').trim()}`;
+  }
+
+  function setResultTag(id, status) {
+    const el = document.getElementById(id);
+    el.className = `result-tag ${status}`;
+    el.textContent = status === 'pass' ? 'PASS' : status === 'warn' ? 'WARN' : 'FAIL';
+  }
+
+  function finishCheck() {
+    // In production: submit data to backend
+    alert('Assessment complete. In production, this data would be submitted to the Nexacore platform and linked to the policy application.');
+  }
+
+  // ==================== UTILS ====================
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+</script>
+
+</body>
+</html>
