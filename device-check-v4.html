@@ -1446,6 +1446,78 @@ function nxReportSafe() {
   }));
 }
 
+// ===================== IMAGE UPLOAD HELPERS =====================
+// Downscale a File to a JPEG Blob with max edge length, keeping aspect ratio
+async function nxDownscaleToBlob(file, maxEdge = 1600, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxEdge || height > maxEdge) {
+        if (width > height) {
+          height = Math.round(height * (maxEdge / width));
+          width = maxEdge;
+        } else {
+          width = Math.round(width * (maxEdge / height));
+          height = maxEdge;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        if (!blob) return reject(new Error('canvas.toBlob returned null'));
+        resolve(blob);
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
+}
+
+// Convert a Blob to a data URL (used for in-app preview)
+function nxBlobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Upload a Blob to Supabase Storage. Returns { path, size } on success.
+async function nxUploadToStorage(bucket, fullPath, blob) {
+  if (NX.previewMode || !NX.sb) return { skipped: true };
+  const { error } = await NX.sb.storage.from(bucket).upload(fullPath, blob, {
+    upsert: true,
+    contentType: 'image/jpeg'
+  });
+  if (error) {
+    console.error('Storage upload error:', error);
+    throw error;
+  }
+  return { path: fullPath, size: blob.size };
+}
+
+// Cache of storage paths from session_get_storage_paths
+NX.storagePaths = null;
+
+async function nxLoadStoragePaths() {
+  if (NX.previewMode || !NX.sb) return null;
+  if (NX.storagePaths) return NX.storagePaths;
+  const { data, error } = await NX.sb.rpc('session_get_storage_paths', { p_token: NX.token });
+  if (error) { console.error('Failed to load storage paths:', error); return null; }
+  NX.storagePaths = data;
+  return data;
+}
+
 // ===================== STATE =====================
 const report = {
   id: '',
@@ -1993,38 +2065,78 @@ function goToStep(n) {
 }
 
 // ===================== IMEI SCREENSHOT =====================
-function handleIMEIScreenshot(event) {
+async function handleIMEIScreenshot(event) {
   const file = event.target.files[0];
   if (!file) return;
+  event.target.value = ''; // allow re-pick
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
+  const area = document.getElementById('imeiCaptureArea');
+  const placeholder = document.getElementById('imeiPlaceholder');
+  const btnNext = document.getElementById('btnConfirmNext');
+
+  // Visual hint that we're processing
+  if (placeholder) {
+    placeholder.innerHTML = '<div class="imei-capture-icon">⏳</div><div class="imei-capture-label">Processing…</div>';
+  }
+
+  try {
+    // Downscale to JPEG (max 1600px edge, quality 0.85)
+    const blob = await nxDownscaleToBlob(file, 1600, 0.85);
+    const dataUrl = await nxBlobToDataUrl(blob);
+
     report.imei = {
-      screenshot: e.target.result,
+      screenshot: dataUrl,
       timestamp: new Date().toISOString(),
-      size: file.size,
-      type: file.type
+      size: blob.size,
+      type: 'image/jpeg'
     };
 
-    const area = document.getElementById('imeiCaptureArea');
+    // Render preview
     area.classList.add('captured');
-    const placeholder = document.getElementById('imeiPlaceholder');
-    placeholder.style.display = 'none';
-
+    if (placeholder) placeholder.style.display = 'none';
+    // Remove any previous preview img
+    const oldImg = area.querySelector('img');
+    if (oldImg) oldImg.remove();
     const img = document.createElement('img');
-    img.src = e.target.result;
+    img.src = dataUrl;
     area.appendChild(img);
 
-    // Enable continue button
-    document.getElementById('btnConfirmNext').disabled = false;
+    // Enable continue button immediately (upload runs in background)
+    if (btnNext) btnNext.disabled = false;
 
-    event.target.value = '';
-  };
-  reader.readAsDataURL(file);
+    // Upload to storage and record in DB (non-blocking for UX)
+    (async () => {
+      try {
+        const paths = await nxLoadStoragePaths();
+        if (!paths) return;
+        const fullPath = paths.imei_prefix + '.jpg';
+        await nxUploadToStorage('imei_screenshots', fullPath, blob);
+        await nxCall('session_record_imei', {
+          p_token: NX.token,
+          p_storage_path: fullPath,
+          p_size_bytes: blob.size,
+          p_mime_type: 'image/jpeg'
+        });
+      } catch (e) {
+        console.error('IMEI upload failed:', e);
+      }
+    })();
+  } catch (e) {
+    console.error('IMEI processing failed:', e);
+    if (placeholder) {
+      placeholder.innerHTML = '<div class="imei-capture-icon">📸</div><div class="imei-capture-label">Tap to upload IMEI screenshot</div><div class="imei-capture-hint">Select from your photos or screenshots</div>';
+    }
+  }
 }
 
 // ===================== STAGE 1 COMPLETE =====================
 async function completeStage1() {
+  const submitBtn = document.getElementById('btnConfirmNext');
+  const submitBtnOriginalText = submitBtn ? submitBtn.textContent : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
+  }
   const d = report.diagnostics;
 
   // Camera and identity are critical — any failure = overall fail
@@ -2204,25 +2316,31 @@ function capturePhoto(slot) {
   input.click();
 }
 
-function handlePhoto(event) {
+async function handlePhoto(event) {
   const file = event.target.files[0];
   if (!file || !currentPhotoSlot) return;
+  event.target.value = '';
+  const slot = currentPhotoSlot;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    report.photos[currentPhotoSlot] = {
-      data: e.target.result,
+  const el = document.getElementById(`photo-${slot}`);
+
+  try {
+    // Downscale (mirror photos can be large, especially from modern phones)
+    const blob = await nxDownscaleToBlob(file, 1600, 0.85);
+    const dataUrl = await nxBlobToDataUrl(blob);
+
+    report.photos[slot] = {
+      data: dataUrl,
       timestamp: new Date().toISOString(),
-      size: file.size,
-      type: file.type
+      size: blob.size,
+      type: 'image/jpeg'
     };
 
-    const el = document.getElementById(`photo-${currentPhotoSlot}`);
     const existingImg = el.querySelector('img');
     if (existingImg) existingImg.remove();
 
     const img = document.createElement('img');
-    img.src = e.target.result;
+    img.src = dataUrl;
     el.appendChild(img);
     el.classList.add('captured');
 
@@ -2237,13 +2355,37 @@ function handlePhoto(event) {
     const hasRequired = report.photos.screen && report.photos.back;
     document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
 
-    event.target.value = '';
-  };
-  reader.readAsDataURL(file);
+    // Upload to storage and record in DB (non-blocking for UX)
+    (async () => {
+      try {
+        const paths = await nxLoadStoragePaths();
+        if (!paths) return;
+        const prefixKey = slot === 'screen' ? 'photo_screen_prefix' : 'photo_back_prefix';
+        const fullPath = paths[prefixKey] + '.jpg';
+        await nxUploadToStorage('condition_photos', fullPath, blob);
+        await nxCall('session_record_photo', {
+          p_token: NX.token,
+          p_slot: slot,
+          p_storage_path: fullPath,
+          p_size_bytes: blob.size,
+          p_mime_type: 'image/jpeg'
+        });
+      } catch (e) {
+        console.error(`Photo upload failed (${slot}):`, e);
+      }
+    })();
+  } catch (e) {
+    console.error('Photo processing failed:', e);
+  }
 }
 
 // ===================== STAGE 2 SUBMIT =====================
 async function submitStage2() {
+  const submitBtn = document.getElementById('btnPhotoSubmit');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
+  }
   report.stage = 2;
   report.stage2Result = 'pass';
 
