@@ -1496,33 +1496,37 @@ function nxBlobToDataUrl(blob) {
   });
 }
 
-// Upload a Blob to Supabase Storage. Returns { path, size } on success.
-async function nxUploadToStorage(bucket, fullPath, blob) {
-  if (NX.previewMode || !NX.sb) return { skipped: true };
-  const { error } = await NX.sb.storage.from(bucket).upload(fullPath, blob, {
-    upsert: true,
-    contentType: 'image/jpeg'
+// Upload via edge function (handles auth, storage upload, OCR, DB record in one call).
+// Returns the JSON response from the function: { success, path, imei?, imei_valid?, ocr_error? }
+async function nxUploadViaFunction(kind, blob) {
+  if (NX.previewMode || !NX.token) return { skipped: true };
+
+  const formData = new FormData();
+  formData.append('session_token', NX.token);
+  formData.append('kind', kind);
+  formData.append('file', blob, `${kind}.jpg`);
+
+  const url = `${NX.SUPABASE_URL}/functions/v1/upload-and-process`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': NX.SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${NX.SUPABASE_ANON_KEY}`,
+    },
+    body: formData,
   });
-  if (error) {
-    console.error('Storage upload error:', error);
-    const msg = error.message || error.error || JSON.stringify(error);
-    const statusInfo = error.statusCode ? ` (HTTP ${error.statusCode})` : '';
-    nxShowBanner(`Upload failed: ${msg}${statusInfo}`, 'error');
-    throw error;
+
+  if (!resp.ok) {
+    let errMsg = `HTTP ${resp.status}`;
+    try {
+      const body = await resp.json();
+      errMsg = body.error || errMsg;
+    } catch {}
+    nxShowBanner(`Upload failed: ${errMsg}`, 'error');
+    throw new Error(errMsg);
   }
-  return { path: fullPath, size: blob.size };
-}
 
-// Cache of storage paths from session_get_storage_paths
-NX.storagePaths = null;
-
-async function nxLoadStoragePaths() {
-  if (NX.previewMode || !NX.sb) return null;
-  if (NX.storagePaths) return NX.storagePaths;
-  const { data, error } = await NX.sb.rpc('session_get_storage_paths', { p_token: NX.token });
-  if (error) { console.error('Failed to load storage paths:', error); return null; }
-  NX.storagePaths = data;
-  return data;
+  return await resp.json();
 }
 
 // ===================== STATE =====================
@@ -2111,19 +2115,22 @@ async function handleIMEIScreenshot(event) {
     // Enable continue button immediately (upload runs in background)
     if (btnNext) btnNext.disabled = false;
 
-    // Upload to storage and record in DB (non-blocking for UX)
+    // Upload via edge function (handles storage + OCR + DB record)
     (async () => {
       try {
-        const paths = await nxLoadStoragePaths();
-        if (!paths) return;
-        const fullPath = paths.imei_prefix + '.jpg';
-        await nxUploadToStorage('imei_screenshots', fullPath, blob);
-        await nxCall('session_record_imei', {
-          p_token: NX.token,
-          p_storage_path: fullPath,
-          p_size_bytes: blob.size,
-          p_mime_type: 'image/jpeg'
-        });
+        const result = await nxUploadViaFunction('imei', blob);
+        if (result && result.imei) {
+          report.imei.extracted = result.imei;
+          report.imei.valid = result.imei_valid;
+          // Show extracted IMEI as confirmation
+          const hint = document.querySelector('.imei-capture-hint');
+          if (hint) {
+            hint.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
+            hint.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
+          }
+        } else if (result && result.ocr_error) {
+          console.warn('OCR error (upload succeeded):', result.ocr_error);
+        }
       } catch (e) {
         console.error('IMEI upload failed:', e);
       }
@@ -2362,21 +2369,10 @@ async function handlePhoto(event) {
     const hasRequired = report.photos.screen && report.photos.back;
     document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
 
-    // Upload to storage and record in DB (non-blocking for UX)
+    // Upload via edge function (handles storage + DB record)
     (async () => {
       try {
-        const paths = await nxLoadStoragePaths();
-        if (!paths) return;
-        const prefixKey = slot === 'screen' ? 'photo_screen_prefix' : 'photo_back_prefix';
-        const fullPath = paths[prefixKey] + '.jpg';
-        await nxUploadToStorage('condition_photos', fullPath, blob);
-        await nxCall('session_record_photo', {
-          p_token: NX.token,
-          p_slot: slot,
-          p_storage_path: fullPath,
-          p_size_bytes: blob.size,
-          p_mime_type: 'image/jpeg'
-        });
+        await nxUploadViaFunction(slot, blob);
       } catch (e) {
         console.error(`Photo upload failed (${slot}):`, e);
       }
