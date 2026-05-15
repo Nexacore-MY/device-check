@@ -1506,7 +1506,7 @@ async function nxUploadViaFunction(kind, blob) {
   formData.append('kind', kind);
   formData.append('file', blob, `${kind}.jpg`);
 
-  const url = `${NX.SUPABASE_URL}/functions/v1/upload-and-process`;
+  const url = `${NX.SUPABASE_URL}/functions/v1/smart-handler`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
