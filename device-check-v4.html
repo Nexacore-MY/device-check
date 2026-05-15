@@ -1370,8 +1370,12 @@ const NX = {
 };
 
 (function initNx() {
-  const params = new URLSearchParams(window.location.search);
-  NX.token = params.get('s');
+  // Session token lives in URL fragment (#s=...) so it's never sent in Referer headers
+  // or captured by analytics. Falls back to query string only for migration safety.
+  const hash = (window.location.hash || '').replace(/^#/, '');
+  const hashParams = new URLSearchParams(hash);
+  const queryParams = new URLSearchParams(window.location.search);
+  NX.token = hashParams.get('s') || queryParams.get('s');
   if (window.supabase && window.supabase.createClient) {
     NX.sb = window.supabase.createClient(NX.SUPABASE_URL, NX.SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false }
