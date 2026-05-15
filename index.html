@@ -1501,6 +1501,9 @@ async function nxUploadToStorage(bucket, fullPath, blob) {
   });
   if (error) {
     console.error('Storage upload error:', error);
+    const msg = error.message || error.error || JSON.stringify(error);
+    const statusInfo = error.statusCode ? ` (HTTP ${error.statusCode})` : '';
+    nxShowBanner(`Upload failed: ${msg}${statusInfo}`, 'error');
     throw error;
   }
   return { path: fullPath, size: blob.size };
