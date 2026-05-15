@@ -2547,7 +2547,17 @@ function downloadReport(type) {
   const ramVal = sp.deviceMemory || navigator.deviceMemory;
   pdf.text(`RAM: ${ramVal && ramVal !== 'unknown' ? ramVal + ' GB' : 'Not available (iOS)'}`, 20, y);
   pdf.text(`Profile: ${report.device.fingerprint}`, w/2 + 10, y);
-  y += 12;
+  y += 6;
+  // IMEI line (OCR result)
+  const imeiText = (report.imei && report.imei.extracted)
+    ? `IMEI: ${report.imei.extracted}${report.imei.valid ? ' (verified)' : ' (unverified)'}`
+    : 'IMEI: not extracted';
+  pdf.setTextColor(...dark);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(imeiText, 20, y);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...gray);
+  y += 8;
 
   // ---- DIAGNOSTIC RESULTS TABLE ----
   pdf.setFontSize(11);
@@ -2575,7 +2585,8 @@ function downloadReport(type) {
     { name: 'Microphone', status: d.mic.status, detail: d.mic.data.working ? 'Microphone active' : (d.mic.data.error || 'Microphone not responsive') },
     { name: 'Speaker', status: d.speaker.status, detail: d.speaker.data.working ? 'Audio output active' : (d.speaker.data.reason || 'Speaker test failed') },
     { name: 'Display', status: d.screen.status, detail: `Zones: ${d.screen.data.touchZonesCovered || 0}/9` },
-    { name: 'IMEI Screenshot', status: report.imei && report.imei.screenshot ? 'passed' : 'failed', detail: report.imei && report.imei.timestamp ? `Captured ${new Date(report.imei.timestamp).toLocaleTimeString('en-MY')}` : 'Not captured' }
+    { name: 'IMEI Screenshot', status: report.imei && report.imei.screenshot ? 'passed' : 'failed', detail: report.imei && report.imei.timestamp ? `Captured ${new Date(report.imei.timestamp).toLocaleTimeString('en-MY')}` : 'Not captured' },
+    { name: 'IMEI Number', status: report.imei && report.imei.extracted ? (report.imei.valid ? 'passed' : 'warning') : 'failed', detail: report.imei && report.imei.extracted ? (report.imei.valid ? `${report.imei.extracted} (verified)` : `${report.imei.extracted} (unverified)`) : 'OCR could not extract IMEI' }
   ];
 
   if (type === 'full') {
@@ -2701,7 +2712,14 @@ function downloadReport(type) {
 }
 
 function finishCheck() {
-  alert('Assessment complete.\n\nReference: ' + report.id + '\n\nIn production, this report would be submitted to the Nexacore platform and linked to the policy.\n\nFull diagnostic report has been logged to console.');
+  nxShowBanner(`Assessment complete. Reference: ${report.id}`, 'info');
+  // Disable the Done button so it's clear the action was taken
+  const finalBtn = document.querySelector('#screen-7 .btn-success');
+  if (finalBtn) {
+    finalBtn.disabled = true;
+    finalBtn.style.opacity = '0.4';
+    finalBtn.style.cursor = 'not-allowed';
+  }
 }
 
 // ===================== UTILS =====================

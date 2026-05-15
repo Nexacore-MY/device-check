@@ -218,6 +218,30 @@ Deno.serve(async (req) => {
       return json({ error: "Session expired" }, 401);
     }
 
+    // Rate limit: per-IP (30 uploads/minute)
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("x-real-ip")
+      || "unknown";
+    if (ip !== "unknown") {
+      const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
+        p_ip: ip,
+        p_per_minute_limit: 30,
+      });
+      if (ipOk === false) {
+        return json({ error: "Rate limit exceeded" }, 429);
+      }
+    }
+
+    // Rate limit: per-session upload count
+    const quotaKind = kind === "imei" ? "imei" : "photo";
+    const { data: quotaOk } = await supabase.rpc("session_check_upload_quota", {
+      p_token: sessionToken,
+      p_kind: quotaKind,
+    });
+    if (quotaOk === false) {
+      return json({ error: "Upload quota exceeded for this session" }, 429);
+    }
+
     // Upload to storage
     const bucket = kind === "imei" ? "imei_screenshots" : "condition_photos";
     const path = `${session.id}/${kind}.jpg`;
