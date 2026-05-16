@@ -2211,10 +2211,11 @@ async function handleIMEIScreenshot(event) {
     statusLine.textContent = 'Uploading and reading IMEI…';
 
     // Upload synchronously — Continue button stays disabled until OCR result is in memory
-    NX.uploadAttempts.imei++;
     try {
       const result = await nxUploadViaFunction('imei', blob);
       if (result && result.rejected) {
+        // Don't count infrastructure failures against the retry limit
+        if (result.reason !== 'analysis_failed') NX.uploadAttempts.imei++;
         // OCR didn't find an IMEI
         if (NX.uploadAttempts.imei >= NX.MAX_ATTEMPTS) {
           statusLine.style.background = '#FEE2E2';
@@ -2495,28 +2496,51 @@ async function handlePhoto(event) {
     nxShowBanner(`Uploading ${slot === 'screen' ? 'screen' : 'back'} photo…`, 'info');
 
     // Upload synchronously so Submit only enables when data is committed
-    NX.uploadAttempts[slot]++;
     try {
       const result = await nxUploadViaFunction(slot, blob);
 
       if (result && result.rejected) {
-        // LLM rejected the photo
         delete report.photos[slot];
+
+        // HARD FAIL — pre-existing damage is not retryable. Lock the entire Stage 2.
+        if (result.reason === 'pre_existing_damage') {
+          // Keep the preview so user sees what was rejected
+          badge.textContent = '🚫';
+          badge.style.background = 'var(--danger)';
+          // Lock both photo slots
+          ['screen', 'back'].forEach(s => {
+            const slotEl = document.getElementById(`photo-${s}`);
+            if (slotEl) {
+              slotEl.style.pointerEvents = 'none';
+              slotEl.style.opacity = '0.5';
+            }
+          });
+          // Disable Submit
+          document.getElementById('btnPhotoSubmit').disabled = true;
+          nxShowBanner(result.user_message || 'Device not eligible due to pre-existing damage.', 'error');
+          return;
+        }
+
+        // Soft rejections (user can fix) — allow retry
         el.classList.remove('captured');
         const previewImg = el.querySelector('img');
         if (previewImg) previewImg.remove();
+
+        // Don't count infrastructure failures (timeouts, API errors) against the user's retry limit
+        const isInfraFailure = result.reason === 'analysis_failed';
+        if (!isInfraFailure) NX.uploadAttempts[slot]++;
 
         if (NX.uploadAttempts[slot] >= NX.MAX_ATTEMPTS) {
           badge.textContent = '🚫';
           badge.style.background = 'var(--danger)';
           nxShowBanner(`Too many attempts on ${slot} photo. Session cannot continue. Please start a new session.`, 'error');
-          // Lock this slot
           el.style.pointerEvents = 'none';
           el.style.opacity = '0.5';
         } else {
           badge.textContent = '✗';
           badge.style.background = 'var(--danger)';
-          nxShowBanner(`${result.user_message || 'Photo rejected.'} (Attempt ${NX.uploadAttempts[slot]}/${NX.MAX_ATTEMPTS})`, 'error');
+          const counter = isInfraFailure ? '' : ` (Attempt ${NX.uploadAttempts[slot]}/${NX.MAX_ATTEMPTS})`;
+          nxShowBanner(`${result.user_message || 'Photo rejected.'}${counter}`, 'error');
         }
       } else {
         badge.textContent = '✓';
