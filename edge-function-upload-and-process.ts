@@ -1,16 +1,19 @@
 // ============================================================
-// Nexacore Device Check — Edge Function: upload-and-process
+// Nexacore Device Check — Edge Function: smart-handler (upload + analysis)
 // ============================================================
-// Accepts multipart/form-data with:
-//   session_token: string  (the URL token)
+// Accepts multipart/form-data:
+//   session_token: string
 //   kind: "imei" | "screen" | "back"
 //   file: image binary
 //
-// Validates session, uploads to storage with service_role, runs Vision OCR
-// for IMEI uploads, records metadata in DB. Idempotent on (session_id, kind).
+// Per kind:
+//   - imei: upload + Google Vision OCR; HARD FAIL if no 15-digit number found
+//   - screen/back: upload + Gemini photo analysis; rejection rules applied
+//     (not_phone_in_mirror, unusable, obscured, case_visible, fold_closed,
+//      pre_existing_damage)
 //
-// Deploy via Supabase Dashboard → Edge Functions → New Function.
-// Function name: upload-and-process
+// On rejection: storage object is deleted, DB is NOT updated, error returned.
+// Frontend handles retries (max 3 per slot).
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -19,7 +22,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GCP_CREDENTIALS = Deno.env.get("GCP_VISION_CREDENTIALS")!;
 
-// CORS — locked to GitHub Pages origin once stable; using * during demo development
+// LLM provider — swap by changing this constant. Implementations are below.
+const VISION_PROVIDER: "gemini" | "claude" = "gemini";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -33,7 +38,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 // ============================================================
-// Google Vision OAuth2 (JWT bearer flow)
+// Google OAuth2 — shared by Vision API and Gemini (Vertex AI)
 // ============================================================
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
@@ -41,7 +46,6 @@ async function getGcpAccessToken(): Promise<string> {
   if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now() + 60_000) {
     return cachedAccessToken.token;
   }
-
   const creds = JSON.parse(GCP_CREDENTIALS);
   const now = Math.floor(Date.now() / 1000);
   const claim = {
@@ -51,35 +55,28 @@ async function getGcpAccessToken(): Promise<string> {
     iat: now,
     exp: now + 3600,
   };
-
   const b64url = (data: string) =>
     btoa(data).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
   const headerEnc = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claimEnc = b64url(JSON.stringify(claim));
   const message = `${headerEnc}.${claimEnc}`;
-
-  // Import the PKCS#8 private key
   const pemBody = creds.private_key
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
     .replace(/\s/g, "");
   const derBytes = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey(
-    "pkcs8",
-    derBytes,
+    "pkcs8", derBytes,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
+    false, ["sign"]
   );
   const sigBuffer = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
+    "RSASSA-PKCS1-v1_5", key,
     new TextEncoder().encode(message)
   );
   const sigEnc = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
     .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
   const jwt = `${message}.${sigEnc}`;
-
   const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -97,21 +94,26 @@ async function getGcpAccessToken(): Promise<string> {
 }
 
 // ============================================================
-// Vision API TEXT_DETECTION
+// Helper — base64 encode large image bytes without stack overflow
+// ============================================================
+function imageBytesToBase64(imageBytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 32768;
+  for (let i = 0; i < imageBytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...imageBytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// ============================================================
+// Google Vision API — IMEI OCR (TEXT_DETECTION)
 // ============================================================
 async function visionTextDetection(
   imageBytes: Uint8Array,
   signal: AbortSignal
 ): Promise<string> {
   const token = await getGcpAccessToken();
-  // Convert to base64 in chunks to avoid stack overflow on large images
-  let binary = "";
-  const chunkSize = 32768;
-  for (let i = 0; i < imageBytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...imageBytes.subarray(i, i + chunkSize));
-  }
-  const b64Image = btoa(binary);
-
+  const b64Image = imageBytesToBase64(imageBytes);
   const resp = await fetch("https://vision.googleapis.com/v1/images:annotate", {
     method: "POST",
     signal,
@@ -133,18 +135,11 @@ async function visionTextDetection(
   return data.responses?.[0]?.fullTextAnnotation?.text ?? "";
 }
 
-// ============================================================
-// IMEI extraction + Luhn validation
-// ============================================================
 function luhnCheck(digits: string): boolean {
-  let sum = 0;
-  let alt = false;
+  let sum = 0, alt = false;
   for (let i = digits.length - 1; i >= 0; i--) {
     let d = parseInt(digits[i], 10);
-    if (alt) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
+    if (alt) { d *= 2; if (d > 9) d -= 9; }
     sum += d;
     alt = !alt;
   }
@@ -152,43 +147,198 @@ function luhnCheck(digits: string): boolean {
 }
 
 function extractImei(ocrText: string): { imei: string | null; valid: boolean } {
-  // Find 15-digit candidates (allowing spaces/dashes/dots between digits)
   const candidates = ocrText.match(/(?:\d[\s.\-]?){15}/g) ?? [];
-  for (const candidate of candidates) {
-    const digits = candidate.replace(/\D/g, "");
-    if (digits.length === 15 && luhnCheck(digits)) {
-      return { imei: digits, valid: true };
-    }
+  for (const c of candidates) {
+    const digits = c.replace(/\D/g, "");
+    if (digits.length === 15 && luhnCheck(digits)) return { imei: digits, valid: true };
   }
-  // Fallback: return any 15-digit run even without Luhn (some carriers issue non-standard IMEIs)
-  for (const candidate of candidates) {
-    const digits = candidate.replace(/\D/g, "");
-    if (digits.length === 15) {
-      return { imei: digits, valid: false };
-    }
+  for (const c of candidates) {
+    const digits = c.replace(/\D/g, "");
+    if (digits.length === 15) return { imei: digits, valid: false };
   }
   return { imei: null, valid: false };
+}
+
+// ============================================================
+// Photo analysis — Gemini (default) or Claude
+// ============================================================
+type PhotoAnalysis = {
+  is_phone_in_mirror: boolean;
+  photo_quality: "good" | "poor" | "unusable";
+  photo_quality_reason: string;
+  device_visibility: "full" | "partial" | "obscured";
+  phone_case_visible: boolean;
+  is_fold_phone_closed: boolean;
+  damage: Array<{
+    type: string;
+    severity: "minor" | "moderate" | "severe";
+    location: string;
+    confidence: "low" | "medium" | "high";
+  }>;
+  condition_score: number;
+  summary: string;
+};
+
+const PHOTO_ANALYSIS_PROMPT = (photoKind: "screen" | "back") => `You are analyzing a photo submitted for a mobile phone insurance enrolment (Accidental Damage Protection). The customer was asked to photograph their phone in a mirror.
+
+Photo type: ${photoKind === "screen" ? "screen-side (front of device facing mirror)" : "back-side (back of device facing mirror)"}
+
+Analyze this image and respond with ONLY valid JSON in this exact structure (no markdown, no preamble, no commentary):
+
+{
+  "is_phone_in_mirror": boolean,
+  "photo_quality": "good" | "poor" | "unusable",
+  "photo_quality_reason": "brief explanation",
+  "device_visibility": "full" | "partial" | "obscured",
+  "phone_case_visible": boolean,
+  "is_fold_phone_closed": boolean,
+  "damage": [
+    {
+      "type": "screen_crack" | "back_glass_crack" | "structural_damage" | "scratch" | "dent",
+      "severity": "minor" | "moderate" | "severe",
+      "location": "brief description",
+      "confidence": "low" | "medium" | "high"
+    }
+  ],
+  "condition_score": 1-10,
+  "summary": "1-2 sentence overall description"
+}
+
+Critical guidance:
+- A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface.
+- "phone_case_visible" = true only if a protective case is clearly fitted to the device body. A bare device returns false.
+- "is_fold_phone_closed" = true only if it's a fold/flip phone (Z Fold, Z Flip, Razr etc.) in closed state.
+- For ${photoKind === "back" ? "BACK photos: pay close attention to whether a case is hiding the device." : "SCREEN photos: judge condition of the front glass and bezels."}
+- Only report damage you can clearly see. Prefer "low" confidence over false positives.
+- "condition_score": 10 = pristine, 7-9 = minor wear, 4-6 = visible damage, 1-3 = heavily damaged.
+
+Output only the JSON.`;
+
+async function analyzePhotoGemini(
+  imageBytes: Uint8Array,
+  photoKind: "screen" | "back",
+  signal: AbortSignal
+): Promise<PhotoAnalysis> {
+  const creds = JSON.parse(GCP_CREDENTIALS);
+  const token = await getGcpAccessToken();
+  const project = creds.project_id;
+  // Use the public Generative Language API endpoint via Gemini
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=`;
+  // Vertex AI route (uses our service account token):
+  const vertexUrl = `https://us-central1-aiplatform.googleapis.com/v1/projects/${project}/locations/us-central1/publishers/google/models/gemini-2.0-flash:generateContent`;
+  const b64 = imageBytesToBase64(imageBytes);
+
+  const resp = await fetch(vertexUrl, {
+    method: "POST",
+    signal,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [{
+        role: "user",
+        parts: [
+          { inline_data: { mime_type: "image/jpeg", data: b64 } },
+          { text: PHOTO_ANALYSIS_PROMPT(photoKind) },
+        ],
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        response_mime_type: "application/json",
+      },
+    }),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Gemini failed: ${resp.status} ${await resp.text()}`);
+  }
+  const data = await resp.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  // Strip code fences if Gemini added them
+  const cleaned = text.replace(/^```json\s*/i, "").replace(/```$/m, "").trim();
+  return JSON.parse(cleaned) as PhotoAnalysis;
+}
+
+async function analyzePhoto(
+  imageBytes: Uint8Array,
+  photoKind: "screen" | "back",
+  signal: AbortSignal
+): Promise<PhotoAnalysis> {
+  if (VISION_PROVIDER === "gemini") {
+    return analyzePhotoGemini(imageBytes, photoKind, signal);
+  }
+  throw new Error(`Provider ${VISION_PROVIDER} not implemented`);
+}
+
+// Apply rejection rules — returns null if accepted, error string if rejected
+function evaluatePhotoAnalysis(
+  analysis: PhotoAnalysis,
+  photoKind: "screen" | "back"
+): { rejected: boolean; reason?: string; user_message?: string } {
+  if (!analysis.is_phone_in_mirror) {
+    return {
+      rejected: true,
+      reason: "not_phone_in_mirror",
+      user_message: "We couldn't see your phone in a mirror. Please retake the photo with your phone facing a mirror.",
+    };
+  }
+  if (analysis.photo_quality === "unusable") {
+    return {
+      rejected: true,
+      reason: "photo_unusable",
+      user_message: `Photo isn't clear enough: ${analysis.photo_quality_reason}. Please retake in better lighting.`,
+    };
+  }
+  if (analysis.device_visibility === "obscured") {
+    return {
+      rejected: true,
+      reason: "device_obscured",
+      user_message: "Make sure your whole phone is visible in the mirror, not covered by your fingers or anything else.",
+    };
+  }
+  if (photoKind === "back" && analysis.phone_case_visible) {
+    return {
+      rejected: true,
+      reason: "phone_case_on",
+      user_message: "Please remove your phone case and try again.",
+    };
+  }
+  if (analysis.is_fold_phone_closed) {
+    return {
+      rejected: true,
+      reason: "fold_phone_closed",
+      user_message: "Please open your phone fully (unfold it) before taking the photo.",
+    };
+  }
+  // Damage rejection — only HIGH-confidence moderate/severe damage on critical surfaces
+  const rejectableDamage = (analysis.damage || []).find((d) =>
+    (d.type === "screen_crack" || d.type === "back_glass_crack" || d.type === "structural_damage")
+    && (d.severity === "moderate" || d.severity === "severe")
+    && d.confidence === "high"
+  );
+  if (rejectableDamage) {
+    return {
+      rejected: true,
+      reason: "pre_existing_damage",
+      user_message: `We detected pre-existing damage (${rejectableDamage.type.replace(/_/g, " ")}, ${rejectableDamage.location}). This device is not eligible for enrolment.`,
+    };
+  }
+  return { rejected: false };
 }
 
 // ============================================================
 // Main handler
 // ============================================================
 Deno.serve(async (req) => {
-  // CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
-  }
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
-
   let uploadedPath: string | null = null;
   let uploadedBucket: string | null = null;
 
   try {
-    // Parse multipart form
     const form = await req.formData();
     const sessionToken = String(form.get("session_token") ?? "");
     const kind = String(form.get("kind") ?? "");
@@ -210,33 +360,21 @@ Deno.serve(async (req) => {
       .select("id, partner_id, expires_at, status")
       .eq("token", sessionToken)
       .single();
+    if (sessionErr || !session) return json({ error: "Session not found" }, 401);
+    if (new Date(session.expires_at) < new Date()) return json({ error: "Session expired" }, 401);
 
-    if (sessionErr || !session) {
-      return json({ error: "Session not found" }, 401);
-    }
-    if (new Date(session.expires_at) < new Date()) {
-      return json({ error: "Session expired" }, 401);
-    }
-
-    // Rate limit: per-IP (30 uploads/minute)
+    // Rate limits
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-      || req.headers.get("x-real-ip")
-      || "unknown";
+      || req.headers.get("x-real-ip") || "unknown";
     if (ip !== "unknown") {
       const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
-        p_ip: ip,
-        p_per_minute_limit: 30,
+        p_ip: ip, p_per_minute_limit: 30,
       });
-      if (ipOk === false) {
-        return json({ error: "Rate limit exceeded" }, 429);
-      }
+      if (ipOk === false) return json({ error: "Rate limit exceeded" }, 429);
     }
-
-    // Rate limit: per-session upload count
     const quotaKind = kind === "imei" ? "imei" : "photo";
     const { data: quotaOk } = await supabase.rpc("session_check_upload_quota", {
-      p_token: sessionToken,
-      p_kind: quotaKind,
+      p_token: sessionToken, p_kind: quotaKind,
     });
     if (quotaOk === false) {
       return json({ error: "Upload quota exceeded for this session" }, 429);
@@ -247,27 +385,21 @@ Deno.serve(async (req) => {
     const path = `${session.id}/${kind}.jpg`;
     uploadedBucket = bucket;
     uploadedPath = path;
-
     const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const { error: uploadErr } = await supabase.storage
-      .from(bucket)
-      .upload(path, fileBytes, {
-        upsert: true,
-        contentType: "image/jpeg",
-      });
-    if (uploadErr) {
-      throw new Error(`Storage upload failed: ${uploadErr.message}`);
-    }
+    const { error: uploadErr } = await supabase.storage.from(bucket).upload(path, fileBytes, {
+      upsert: true, contentType: "image/jpeg",
+    });
+    if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`);
 
-    // OCR for IMEI uploads (graceful fallback if Vision fails)
-    let extractedImei: string | null = null;
-    let imeiValid = false;
-    let ocrError: string | null = null;
-
+    // ===== IMEI path =====
     if (kind === "imei") {
+      let extractedImei: string | null = null;
+      let imeiValid = false;
+      let ocrError: string | null = null;
+
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
         const ocrText = await visionTextDetection(fileBytes, controller.signal);
         clearTimeout(timeoutId);
         const result = extractImei(ocrText);
@@ -277,18 +409,24 @@ Deno.serve(async (req) => {
         ocrError = e instanceof Error ? e.message : "OCR failed";
         console.error("OCR error:", ocrError);
       }
-    }
 
-    // Record in DB
-    if (kind === "imei") {
-      const { error: dbErr } = await supabase
-        .from("sessions")
-        .update({
-          imei_screenshot_path: path,
-          imei_extracted: extractedImei,
-          imei_valid: imeiValid,
-        })
-        .eq("id", session.id);
+      // HARD FAIL if no IMEI digits extracted
+      if (!extractedImei) {
+        await supabase.storage.from(bucket).remove([path]).catch(() => {});
+        return json({
+          rejected: true,
+          reason: "imei_not_readable",
+          user_message: "We couldn't read an IMEI number on this screenshot. Make sure you dialed *#06# and captured the IMEI screen, then try again.",
+          ocr_error: ocrError,
+        }, 422);
+      }
+
+      // Record success
+      const { error: dbErr } = await supabase.from("sessions").update({
+        imei_screenshot_path: path,
+        imei_extracted: extractedImei,
+        imei_valid: imeiValid,
+      }).eq("id", session.id);
       if (dbErr) throw new Error(`DB update failed: ${dbErr.message}`);
 
       await supabase.from("audit_log").insert({
@@ -296,24 +434,34 @@ Deno.serve(async (req) => {
         partner_id: session.partner_id,
         event_type: "imei_uploaded",
         actor_type: "customer",
-        event_data: {
-          size: file.size,
-          path,
-          ocr_extracted: extractedImei !== null,
-          ocr_valid: imeiValid,
-          ocr_error: ocrError,
-        },
+        event_data: { size: file.size, path, ocr_valid: imeiValid },
       });
-    } else {
-      const { error: dbErr } = await supabase
-        .from("photos")
-        .upsert({
-          session_id: session.id,
-          slot: kind,
-          storage_path: path,
-          size_bytes: file.size,
-          mime_type: "image/jpeg",
-        }, { onConflict: "session_id,slot" });
+
+      return json({ success: true, path, imei: extractedImei, imei_valid: imeiValid });
+    }
+
+    // ===== Photo path (screen | back) =====
+    let analysis: PhotoAnalysis | null = null;
+    let analysisError: string | null = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      analysis = await analyzePhoto(fileBytes, kind as "screen" | "back", controller.signal);
+      clearTimeout(timeoutId);
+    } catch (e) {
+      analysisError = e instanceof Error ? e.message : "Analysis failed";
+      console.error("Photo analysis error:", analysisError);
+    }
+
+    // If analysis errored (timeout / API outage), accept the photo but flag for review
+    if (!analysis) {
+      const { error: dbErr } = await supabase.from("photos").upsert({
+        session_id: session.id,
+        slot: kind,
+        storage_path: path,
+        size_bytes: file.size,
+        mime_type: "image/jpeg",
+      }, { onConflict: "session_id,slot" });
       if (dbErr) throw new Error(`DB upsert failed: ${dbErr.message}`);
 
       await supabase.from("audit_log").insert({
@@ -321,30 +469,58 @@ Deno.serve(async (req) => {
         partner_id: session.partner_id,
         event_type: "photo_uploaded",
         actor_type: "customer",
-        event_data: { slot: kind, size: file.size, path },
+        event_data: { slot: kind, size: file.size, path, analysis_error: analysisError },
       });
+
+      return json({ success: true, path, analysis_unavailable: true });
     }
 
-    return json({
-      success: true,
-      path,
-      imei: extractedImei,
-      imei_valid: imeiValid,
-      ocr_error: ocrError,
+    // Apply rejection rules
+    const verdict = evaluatePhotoAnalysis(analysis, kind as "screen" | "back");
+    if (verdict.rejected) {
+      // Clean up — don't keep rejected photos
+      await supabase.storage.from(bucket).remove([path]).catch(() => {});
+
+      await supabase.from("audit_log").insert({
+        session_id: session.id,
+        partner_id: session.partner_id,
+        event_type: "photo_rejected",
+        actor_type: "system",
+        event_data: { slot: kind, reason: verdict.reason, analysis },
+      });
+
+      return json({
+        rejected: true,
+        reason: verdict.reason,
+        user_message: verdict.user_message,
+        analysis,
+      }, 422);
+    }
+
+    // Accepted — record with analysis data
+    const { error: dbErr } = await supabase.from("photos").upsert({
+      session_id: session.id,
+      slot: kind,
+      storage_path: path,
+      size_bytes: file.size,
+      mime_type: "image/jpeg",
+    }, { onConflict: "session_id,slot" });
+    if (dbErr) throw new Error(`DB upsert failed: ${dbErr.message}`);
+
+    await supabase.from("audit_log").insert({
+      session_id: session.id,
+      partner_id: session.partner_id,
+      event_type: "photo_uploaded",
+      actor_type: "customer",
+      event_data: { slot: kind, size: file.size, path, analysis },
     });
+
+    return json({ success: true, path, analysis });
   } catch (e) {
     console.error("Function error:", e);
-
-    // Orphan cleanup
     if (uploadedPath && uploadedBucket) {
-      try {
-        await supabase.storage.from(uploadedBucket).remove([uploadedPath]);
-      } catch (cleanupErr) {
-        console.error("Cleanup failed:", cleanupErr);
-      }
+      await supabase.storage.from(uploadedBucket).remove([uploadedPath]).catch(() => {});
     }
-
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return json({ error: msg }, 500);
+    return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
   }
 });
