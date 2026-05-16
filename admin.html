@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexacore Admin — Device Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --white: #FFFFFF;
+    --ice: #CEF1F2;
+    --teal: #44C0C5;
+    --deep-teal: #117F84;
+    --dark: #06444A;
+    --bg: #F6FBFB;
+    --border: #E0EDED;
+    --text: #06444A;
+    --text-light: #5A8A8D;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --radius: 12px;
+    --radius-pill: 999px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Quicksand', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
+  .container { max-width: 960px; margin: 0 auto; }
+  .header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 32px;
+  }
+  .header-logo {
+    width: 40px; height: 40px;
+    background: var(--dark); color: var(--teal);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 18px;
+  }
+  .header-text h1 { font-size: 20px; color: var(--dark); }
+  .header-text p { font-size: 13px; color: var(--text-light); font-weight: 500; }
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; color: var(--dark);
+    margin-bottom: 16px;
+  }
+  .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 200px; }
+  .form-label {
+    display: block;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-light); margin-bottom: 6px;
+    font-family: 'Montserrat', sans-serif;
+  }
+  .form-input, .form-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    background: var(--white);
+    color: var(--text);
+    transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus { outline: none; border-color: var(--teal); }
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-pill);
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Quicksand', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--teal);
+    color: var(--white);
+  }
+  .btn-primary:hover { background: var(--deep-teal); }
+  .btn-secondary {
+    background: var(--ice);
+    color: var(--deep-teal);
+  }
+  .btn-small { padding: 6px 12px; font-size: 12px; }
+  .url-display {
+    background: var(--ice);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    display: none;
+  }
+  .url-display.visible { display: block; }
+  .url-display-label {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--deep-teal); margin-bottom: 6px;
+    font-family: 'Montserrat', sans-serif;
+  }
+  .url-display-value {
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--dark);
+    word-break: break-all;
+    background: var(--white);
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .url-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .qr-container {
+    background: var(--white);
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .qr-container canvas, .qr-container img { display: inline-block; }
+  .qr-hint { font-size: 11px; color: var(--text-light); margin-top: 6px; font-weight: 500; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-light);
+  }
+  td { font-weight: 500; }
+  .status-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-size: 10px; font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .status-created { background: var(--ice); color: var(--deep-teal); }
+  .status-stage1_in_progress { background: #FEF3C7; color: #92400E; }
+  .status-stage1_complete { background: #DBEAFE; color: #1E40AF; }
+  .status-stage2_in_progress { background: #FEF3C7; color: #92400E; }
+  .status-complete { background: #D1FAE5; color: #065F46; }
+  .status-failed { background: #FEE2E2; color: #991B1B; }
+  .status-expired { background: #E5E7EB; color: #4B5563; }
+  .result-pass { color: var(--success); font-weight: 700; }
+  .result-fail { color: var(--danger); font-weight: 700; }
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-light);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--dark);
+    color: var(--white);
+    padding: 12px 20px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(6,68,74,0.25);
+    transition: transform 0.3s ease;
+    z-index: 100;
+  }
+  .toast.visible { transform: translateX(-50%) translateY(0); }
+  .error {
+    background: #FEE2E2;
+    border: 1px solid var(--danger);
+    color: #991B1B;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .error.visible { display: block; }
+  .config-warning {
+    background: #FEF3C7;
+    border: 1px solid var(--warning);
+    color: #92400E;
+    padding: 16px;
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+  .config-warning strong { font-weight: 700; }
+  .meta { font-size: 11px; color: var(--text-light); font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header" style="justify-content:space-between; align-items:center;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="header-logo">N</div>
+      <div class="header-text">
+        <h1>Device Check — Admin</h1>
+        <p>Demo session management</p>
+      </div>
+    </div>
+    <div>
+      <button class="btn btn-secondary btn-small" onclick="nxSignOut()" style="font-size:11px;">Sign out</button>
+    </div>
+  </div>
+
+  <div id="configWarning" class="config-warning" style="display:none;">
+    <strong>Config not loaded.</strong> Make sure <code>admin-config.js</code> exists in this folder.
+  </div>
+
+  <!-- Create session -->
+  <div class="card">
+    <div class="card-title">Create demo session</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="policyRef">Policy reference (optional)</label>
+        <input type="text" id="policyRef" class="form-input" placeholder="e.g. POL-12345">
+      </div>
+      <div class="form-group" style="max-width: 180px;">
+        <label class="form-label" for="language">Language</label>
+        <select id="language" class="form-select">
+          <option value="en">English</option>
+          <option value="ms">Bahasa Malaysia</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex; align-items:flex-end; max-width:200px;">
+        <button class="btn btn-primary" onclick="createSession()" id="createBtn">Generate link</button>
+      </div>
+    </div>
+    <div id="errorMsg" class="error"></div>
+    <div id="urlDisplay" class="url-display">
+      <div class="url-display-label">Session URL</div>
+      <div class="url-display-value" id="urlValue"></div>
+      <div class="url-actions">
+        <button class="btn btn-secondary btn-small" onclick="copyUrl()">Copy link</button>
+        <button class="btn btn-secondary btn-small" onclick="openInNewTab()">Open in new tab</button>
+      </div>
+      <div class="qr-container" id="qrContainer">
+        <div id="qrcode"></div>
+        <div class="qr-hint">Scan with phone to test on a real device</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent sessions -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:0;">Recent sessions</div>
+      <button class="btn btn-secondary btn-small" onclick="loadSessions()">Refresh</button>
+    </div>
+    <div id="sessionsContainer">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="admin-config.js" onerror="void 0;"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+// ===== Defaults (safe to expose: anon key is publishable, URL is public) =====
+const DEFAULT_CONFIG = {
+  SUPABASE_URL: 'https://rysbsztwxjwndwebguuj.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_Ca2iyY__GqNRUw2tYweqXg_Qz6DAzpi',
+  CHECK_URL_BASE: 'https://nexacore-my.github.io/device-check/',
+  DEMO_PARTNER_SLUG: 'nexacore-demo'
+};
+
+// Merge: defaults < admin-config.js (if present) < sessionStorage admin token
+const localCfg = window.NEXACORE_ADMIN_CONFIG || {};
+const cfg = { ...DEFAULT_CONFIG, ...localCfg };
+
+// Admin token: prefer admin-config.js, then sessionStorage, else prompt
+let adminToken = (localCfg && localCfg.ADMIN_TOKEN && localCfg.ADMIN_TOKEN !== 'PASTE_ADMIN_TOKEN_HERE')
+  ? localCfg.ADMIN_TOKEN
+  : sessionStorage.getItem('nx_admin_token');
+
+let sb = null;
+let lastUrl = '';
+
+function nxSignOut() {
+  sessionStorage.removeItem('nx_admin_token');
+  location.reload();
+}
+
+function nxPromptAdminToken() {
+  // Show a modal-like overlay to ask for token
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="tokenOverlay" style="position:fixed;inset:0;background:rgba(6,68,74,0.92);display:flex;align-items:center;justify-content:center;z-index:10000;font-family:Quicksand,sans-serif;">
+      <div style="background:white;padding:32px;border-radius:12px;max-width:420px;width:90%;text-align:center;">
+        <div style="font-family:Montserrat,sans-serif;font-size:18px;font-weight:700;color:#06444A;margin-bottom:8px;">Nexacore Admin Access</div>
+        <div style="font-size:13px;color:#5A8A8D;margin-bottom:20px;font-weight:500;line-height:1.5;">Paste the admin token to access the dashboard. It will only be stored for this browser session.</div>
+        <input id="tokenInput" type="password" placeholder="nxa_..." style="width:100%;padding:12px 14px;border:2px solid #E0EDED;border-radius:8px;font-size:14px;font-family:monospace;margin-bottom:12px;" autocomplete="off">
+        <button onclick="nxSubmitToken()" style="width:100%;padding:12px;background:#44C0C5;color:white;border:none;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;font-family:Quicksand,sans-serif;">Continue</button>
+        <div id="tokenError" style="display:none;color:#EF4444;font-size:12px;margin-top:10px;font-weight:600;"></div>
+      </div>
+    </div>
+  `);
+  document.getElementById('tokenInput').focus();
+  document.getElementById('tokenInput').addEventListener('keypress', e => {
+    if (e.key === 'Enter') nxSubmitToken();
+  });
+}
+
+async function nxSubmitToken() {
+  const input = document.getElementById('tokenInput').value.trim();
+  const err = document.getElementById('tokenError');
+  if (!input || input.length < 10) {
+    err.textContent = 'Token looks too short.';
+    err.style.display = 'block';
+    return;
+  }
+  // Validate by calling list_sessions
+  const testSb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  const { error } = await testSb.rpc('admin_list_sessions', {
+    p_admin_token: input,
+    p_partner_slug: cfg.DEMO_PARTNER_SLUG,
+    p_limit: 1
+  });
+  if (error) {
+    err.textContent = 'Token rejected. Check it and try again.';
+    err.style.display = 'block';
+    return;
+  }
+  sessionStorage.setItem('nx_admin_token', input);
+  adminToken = input;
+  document.getElementById('tokenOverlay').remove();
+  initDashboard();
+}
+
+function initDashboard() {
+  sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  loadSessions();
+}
+
+if (!adminToken) {
+  nxPromptAdminToken();
+} else {
+  initDashboard();
+}
+
+async function createSession() {
+  if (!sb) return;
+  hideError();
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+
+  try {
+    const policyRef = document.getElementById('policyRef').value.trim() || null;
+    const language = document.getElementById('language').value;
+
+    const { data, error } = await sb.rpc('admin_create_session', {
+      p_admin_token: adminToken,
+      p_partner_slug: cfg.DEMO_PARTNER_SLUG,
+      p_policy_ref: policyRef,
+      p_language: language
+    });
+    if (error) throw new Error(error.message);
+    if (!data || !data.length) throw new Error('No session returned from server');
+
+    const token = data[0].token;
+    const url = `${cfg.CHECK_URL_BASE}#s=${token}`;
+    lastUrl = url;
+    document.getElementById('urlValue').textContent = url;
+    document.getElementById('urlDisplay').classList.add('visible');
+
+    const qrEl = document.getElementById('qrcode');
+    qrEl.innerHTML = '';
+    new QRCode(qrEl, { text: url, width: 160, height: 160, colorDark: '#06444A', colorLight: '#FFFFFF' });
+
+    loadSessions();
+    toast('Session created');
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Generate link';
+  }
+}
+
+async function loadSessions() {
+  if (!sb) return;
+  const container = document.getElementById('sessionsContainer');
+  container.innerHTML = '<div class="empty-state">Loading...</div>';
+
+  const { data, error } = await sb.rpc('admin_list_sessions', {
+    p_admin_token: adminToken,
+    p_partner_slug: cfg.DEMO_PARTNER_SLUG,
+    p_limit: 20
+  });
+
+  if (error) {
+    container.innerHTML = `<div class="empty-state">Error loading: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  if (!data.length) {
+    container.innerHTML = '<div class="empty-state">No sessions yet. Create one above.</div>';
+    return;
+  }
+
+  const rows = data.map(s => {
+    const url = `${cfg.CHECK_URL_BASE}#s=${s.token}`;
+    const device = (s.device_brand || s.device_model) ? `${s.device_brand || ''} ${s.device_model || ''}`.trim() : '—';
+    const policy = s.policy_ref || '—';
+    const result = s.overall_result || s.stage1_result || '—';
+    const resultClass = result === 'pass' ? 'result-pass' : result === 'fail' ? 'result-fail' : '';
+    const tokenShort = s.token.slice(0, 8) + '…';
+    const created = new Date(s.created_at).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+    const imei = s.imei_extracted
+      ? `<span class="meta">${escapeHtml(s.imei_extracted)}</span>${s.imei_valid ? ' ✓' : ' <span style="color:var(--warning)">⚠</span>'}`
+      : '—';
+    return `
+      <tr>
+        <td><span class="meta">${escapeHtml(tokenShort)}</span></td>
+        <td>${escapeHtml(policy)}</td>
+        <td><span class="status-tag status-${s.status}">${escapeHtml(s.status.replace(/_/g, ' '))}</span></td>
+        <td class="${resultClass}">${escapeHtml(result.toUpperCase())}</td>
+        <td>${escapeHtml(device)}</td>
+        <td>${imei}</td>
+        <td>${escapeHtml(s.language)}</td>
+        <td class="meta">${escapeHtml(created)}</td>
+        <td><button class="btn btn-secondary btn-small" onclick="copyText('${escapeAttr(url)}')">Copy</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Policy ref</th>
+          <th>Status</th>
+          <th>Result</th>
+          <th>Device</th>
+          <th>IMEI</th>
+          <th>Lang</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function copyUrl() { copyText(lastUrl); }
+
+function copyText(t) {
+  navigator.clipboard.writeText(t).then(() => toast('Copied'));
+}
+
+function openInNewTab() { if (lastUrl) window.open(lastUrl, '_blank'); }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 1800);
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/'/g, "\\'"); }
+
+// Auto-refresh sessions every 10 seconds
+setInterval(() => { if (sb) loadSessions(); }, 10000);
+</script>
+</body>
+</html>

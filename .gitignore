@@ -6,15 +6,12 @@ gcp-vision-key.json
 .env.*.local
 admin-config.js
 
-# Admin tools (local only)
-admin.html
+# Admin tools — admin.html itself is hostable now (requires token at runtime).
+# admin-config.js remains gitignored because it contains the admin token.
 
 # Personal/business files that don't belong in the repo
 squarespace*.pdf
 *Demo Talking Points*.docx
-
-# Local admin tool (not for public repo)
-admin.html
 
 # Internal sales / prep docs
 Device Check - Demo Talking Points.docx
