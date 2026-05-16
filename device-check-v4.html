@@ -2082,10 +2082,8 @@ async function handleIMEIScreenshot(event) {
   const placeholder = document.getElementById('imeiPlaceholder');
   const btnNext = document.getElementById('btnConfirmNext');
 
-  // Visual hint that we're processing
-  if (placeholder) {
-    placeholder.innerHTML = '<div class="imei-capture-icon">⏳</div><div class="imei-capture-label">Processing…</div>';
-  }
+  // Show banner status (visible at top of app, survives layout changes)
+  nxShowBanner('Uploading and reading IMEI…', 'info');
 
   try {
     // Downscale to JPEG (max 1600px edge, quality 0.85)
@@ -2099,22 +2097,26 @@ async function handleIMEIScreenshot(event) {
       type: 'image/jpeg'
     };
 
-    // Render preview
+    // Render preview (replaces placeholder content)
     area.classList.add('captured');
     if (placeholder) placeholder.style.display = 'none';
-    // Remove any previous preview img
     const oldImg = area.querySelector('img');
     if (oldImg) oldImg.remove();
     const img = document.createElement('img');
     img.src = dataUrl;
     area.appendChild(img);
 
-    // Show "Uploading…" state while we wait
-    const hint = document.querySelector('.imei-capture-hint');
-    if (hint) {
-      hint.textContent = 'Uploading and reading IMEI…';
-      hint.style.color = 'var(--deep-teal)';
+    // Add a status line below the image (separate from placeholder)
+    let statusLine = document.getElementById('imeiStatusLine');
+    if (!statusLine) {
+      statusLine = document.createElement('div');
+      statusLine.id = 'imeiStatusLine';
+      statusLine.style.cssText = 'margin-top:10px; padding:8px 12px; font-size:13px; font-weight:600; text-align:center; border-radius:8px;';
+      area.parentNode.insertBefore(statusLine, area.nextSibling);
     }
+    statusLine.style.background = 'var(--ice)';
+    statusLine.style.color = 'var(--deep-teal)';
+    statusLine.textContent = 'Uploading and reading IMEI…';
 
     // Upload synchronously — Continue button stays disabled until OCR result is in memory
     try {
@@ -2122,29 +2124,29 @@ async function handleIMEIScreenshot(event) {
       if (result && result.imei) {
         report.imei.extracted = result.imei;
         report.imei.valid = result.imei_valid;
-        if (hint) {
-          hint.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
-          hint.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
-        }
+        statusLine.style.background = result.imei_valid ? '#D1FAE5' : '#FEF3C7';
+        statusLine.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
+        statusLine.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
+        nxShowBanner(`IMEI detected: ${result.imei}`, 'info');
       } else {
-        if (hint) {
-          hint.textContent = result && result.ocr_error
-            ? 'IMEI saved, but text could not be read. Continue anyway.'
-            : 'IMEI saved. Continue when ready.';
-          hint.style.color = 'var(--text-light)';
-        }
+        statusLine.style.background = 'var(--ice)';
+        statusLine.style.color = 'var(--text-light)';
+        statusLine.textContent = result && result.ocr_error
+          ? 'IMEI saved, but text could not be read.'
+          : 'IMEI saved.';
       }
     } catch (e) {
       console.error('IMEI upload failed:', e);
+      statusLine.style.background = '#FEE2E2';
+      statusLine.style.color = 'var(--danger)';
+      statusLine.textContent = 'Upload failed. Tap the image to try again.';
     }
 
     // Enable continue button now that upload + OCR are done
     if (btnNext) btnNext.disabled = false;
   } catch (e) {
     console.error('IMEI processing failed:', e);
-    if (placeholder) {
-      placeholder.innerHTML = '<div class="imei-capture-icon">📸</div><div class="imei-capture-label">Tap to upload IMEI screenshot</div><div class="imei-capture-hint">Select from your photos or screenshots</div>';
-    }
+    nxShowBanner('Could not process image. Please try again.', 'error');
   }
 }
 
@@ -2363,29 +2365,33 @@ async function handlePhoto(event) {
     el.appendChild(img);
     el.classList.add('captured');
 
-    if (!el.querySelector('.photo-check')) {
-      const check = document.createElement('div');
-      check.className = 'photo-check';
-      check.textContent = '✓';
-      el.appendChild(check);
+    // Add or reuse the badge — start as uploading
+    let badge = el.querySelector('.photo-check');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.className = 'photo-check';
+      el.appendChild(badge);
     }
+    badge.textContent = '…';
+    badge.style.background = 'var(--warning)';
 
-    // Disable Submit until upload completes
+    // Disable Submit and show banner status
     document.getElementById('btnPhotoSubmit').disabled = true;
-
-    // Show "Uploading…" overlay on the slot
-    const check = el.querySelector('.photo-check');
-    if (check) check.textContent = '…';
+    nxShowBanner(`Uploading ${slot === 'screen' ? 'screen' : 'back'} photo…`, 'info');
 
     // Upload synchronously so Submit only enables when data is committed
     try {
       await nxUploadViaFunction(slot, blob);
-      if (check) check.textContent = '✓';
+      badge.textContent = '✓';
+      badge.style.background = 'var(--success)';
+      nxShowBanner(`${slot === 'screen' ? 'Screen' : 'Back'} photo uploaded ✓`, 'info');
     } catch (e) {
       console.error(`Photo upload failed (${slot}):`, e);
-      if (check) check.textContent = '✗';
+      badge.textContent = '✗';
+      badge.style.background = 'var(--danger)';
       el.classList.remove('captured');
       delete report.photos[slot];
+      nxShowBanner('Photo upload failed. Tap to retry.', 'error');
     }
 
     // Now check if both required photos are uploaded
