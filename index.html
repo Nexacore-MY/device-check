@@ -1018,6 +1018,15 @@
           <div class="prep-checkbox"></div>
         </div>
         <div>
+          <div class="prep-title">Disconnect headphones &amp; earbuds</div>
+          <div class="prep-sub">Including AirPods or any Bluetooth audio</div>
+        </div>
+      </div>
+      <div class="prep-item" onclick="togglePrep(this)">
+        <div class="prep-check">
+          <div class="prep-checkbox"></div>
+        </div>
+        <div>
           <div class="prep-title">Have a mirror nearby</div>
           <div class="prep-sub">You'll need it to photograph your device</div>
         </div>
@@ -1826,26 +1835,79 @@ async function runDiagnostics() {
   updateCheckStatus('chk-sensors', sensorsWorking ? 'done' : 'failed',
     sensorsWorking ? 'Sensors ✓' : 'Sensors ✗');
 
-  // 4. Microphone — verify mic access and audio track is live
+  // 4. Microphone — verify mic access AND sample audio levels (RMS variance)
   updateCheckStatus('chk-mic', 'active', 'Testing microphone...');
   document.getElementById('scanStatus').textContent = 'Checking microphone...';
   try {
     const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    await delay(300);
     const audioTrack = micStream.getAudioTracks()[0];
     const trackLive = audioTrack && audioTrack.readyState === 'live' && audioTrack.enabled;
+
+    // RMS sampling — proves the mic is actually capturing, not just permission-granted
+    let rmsAvg = 0;
+    let rmsMax = 0;
+    let rmsVariance = 0;
+    let sampleCount = 0;
+    let micAnalysisOk = false;
+    try {
+      const ctx = sharedAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
+      const source = ctx.createMediaStreamSource(micStream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      const samples = [];
+      const sampleEnd = Date.now() + 1000; // 1 second of sampling
+      while (Date.now() < sampleEnd) {
+        analyser.getByteTimeDomainData(buf);
+        // Compute RMS for this frame (centred around 128)
+        let sumSq = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / buf.length);
+        samples.push(rms);
+        await delay(40);
+      }
+      sampleCount = samples.length;
+      rmsAvg = samples.reduce((a, b) => a + b, 0) / samples.length;
+      rmsMax = Math.max(...samples);
+      const meanOfSquares = samples.reduce((a, b) => a + b * b, 0) / samples.length;
+      rmsVariance = meanOfSquares - rmsAvg * rmsAvg;
+      // A real mic produces non-zero baseline noise even in silence.
+      // Threshold: variance > 0.000001 OR max RMS > 0.005 indicates real audio input.
+      micAnalysisOk = rmsVariance > 0.000001 || rmsMax > 0.005;
+      try { source.disconnect(); } catch {}
+    } catch (analysisErr) {
+      console.warn('Mic RMS analysis failed (track-state only):', analysisErr);
+    }
+
     micStream.getTracks().forEach(t => t.stop());
 
+    // Mic passes if track is live AND (RMS shows real input OR RMS analysis itself failed)
+    // Track-state check is the fallback if RMS sampling errored on a platform quirk.
+    const micWorks = trackLive && (micAnalysisOk || sampleCount === 0);
+
     report.diagnostics.mic.data = {
-      working: trackLive,
-      method: 'track-state',
+      working: micWorks,
+      method: sampleCount > 0 ? 'rms-sampling' : 'track-state',
       trackState: audioTrack ? audioTrack.readyState : 'no track',
-      enabled: audioTrack ? audioTrack.enabled : false
+      enabled: audioTrack ? audioTrack.enabled : false,
+      rmsAvg: Math.round(rmsAvg * 100000) / 100000,
+      rmsMax: Math.round(rmsMax * 100000) / 100000,
+      rmsVariance: Math.round(rmsVariance * 1000000000) / 1000000000,
+      sampleCount: sampleCount
     };
-    report.diagnostics.mic.status = trackLive ? 'passed' : 'failed';
-    if (!trackLive) report.diagnostics.mic.data.reason = 'Microphone track not active';
-    updateCheckStatus('chk-mic', trackLive ? 'done' : 'failed',
-      trackLive ? 'Microphone ✓' : 'Microphone ✗');
+    report.diagnostics.mic.status = micWorks ? 'passed' : 'failed';
+    if (!micWorks) {
+      report.diagnostics.mic.data.reason = !trackLive
+        ? 'Microphone track not active'
+        : 'No audio input detected (mic may be physically blocked or muted)';
+    }
+    updateCheckStatus('chk-mic', micWorks ? 'done' : 'failed',
+      micWorks ? 'Microphone ✓' : 'Microphone ✗');
   } catch (e) {
     report.diagnostics.mic.data = { working: false, error: e.message };
     report.diagnostics.mic.status = 'failed';
