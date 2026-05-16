@@ -1183,7 +1183,6 @@
       </div>
     </div>
 
-    <button class="btn btn-secondary" onclick="downloadReport('stage1')" style="margin-bottom:12px">Download Stage 1 Report</button>
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="finishStage1()">Complete Later</button>
       <button class="btn btn-primary" onclick="startStage2()">Take Photos Now</button>
@@ -1347,14 +1346,12 @@
       <div class="card-desc" id="finalDeviceInfo" style="margin-bottom:0"></div>
     </div>
 
-    <button class="btn btn-secondary" onclick="downloadReport('full')" style="margin-bottom:12px">Download Full Report</button>
     <div class="btn-bottom">
       <button class="btn btn-success" onclick="finishCheck()">Done</button>
     </div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ===================== BACKEND CONFIG =====================
@@ -2112,29 +2109,37 @@ async function handleIMEIScreenshot(event) {
     img.src = dataUrl;
     area.appendChild(img);
 
-    // Enable continue button immediately (upload runs in background)
-    if (btnNext) btnNext.disabled = false;
+    // Show "Uploading…" state while we wait
+    const hint = document.querySelector('.imei-capture-hint');
+    if (hint) {
+      hint.textContent = 'Uploading and reading IMEI…';
+      hint.style.color = 'var(--deep-teal)';
+    }
 
-    // Upload via edge function (handles storage + OCR + DB record)
-    (async () => {
-      try {
-        const result = await nxUploadViaFunction('imei', blob);
-        if (result && result.imei) {
-          report.imei.extracted = result.imei;
-          report.imei.valid = result.imei_valid;
-          // Show extracted IMEI as confirmation
-          const hint = document.querySelector('.imei-capture-hint');
-          if (hint) {
-            hint.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
-            hint.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
-          }
-        } else if (result && result.ocr_error) {
-          console.warn('OCR error (upload succeeded):', result.ocr_error);
+    // Upload synchronously — Continue button stays disabled until OCR result is in memory
+    try {
+      const result = await nxUploadViaFunction('imei', blob);
+      if (result && result.imei) {
+        report.imei.extracted = result.imei;
+        report.imei.valid = result.imei_valid;
+        if (hint) {
+          hint.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
+          hint.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
         }
-      } catch (e) {
-        console.error('IMEI upload failed:', e);
+      } else {
+        if (hint) {
+          hint.textContent = result && result.ocr_error
+            ? 'IMEI saved, but text could not be read. Continue anyway.'
+            : 'IMEI saved. Continue when ready.';
+          hint.style.color = 'var(--text-light)';
+        }
       }
-    })();
+    } catch (e) {
+      console.error('IMEI upload failed:', e);
+    }
+
+    // Enable continue button now that upload + OCR are done
+    if (btnNext) btnNext.disabled = false;
   } catch (e) {
     console.error('IMEI processing failed:', e);
     if (placeholder) {
@@ -2365,18 +2370,27 @@ async function handlePhoto(event) {
       el.appendChild(check);
     }
 
-    // Check if both required photos done
+    // Disable Submit until upload completes
+    document.getElementById('btnPhotoSubmit').disabled = true;
+
+    // Show "Uploading…" overlay on the slot
+    const check = el.querySelector('.photo-check');
+    if (check) check.textContent = '…';
+
+    // Upload synchronously so Submit only enables when data is committed
+    try {
+      await nxUploadViaFunction(slot, blob);
+      if (check) check.textContent = '✓';
+    } catch (e) {
+      console.error(`Photo upload failed (${slot}):`, e);
+      if (check) check.textContent = '✗';
+      el.classList.remove('captured');
+      delete report.photos[slot];
+    }
+
+    // Now check if both required photos are uploaded
     const hasRequired = report.photos.screen && report.photos.back;
     document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
-
-    // Upload via edge function (handles storage + DB record)
-    (async () => {
-      try {
-        await nxUploadViaFunction(slot, blob);
-      } catch (e) {
-        console.error(`Photo upload failed (${slot}):`, e);
-      }
-    })();
   } catch (e) {
     console.error('Photo processing failed:', e);
   }
@@ -2461,255 +2475,6 @@ async function submitStage2() {
   goToStep(7);
 }
 
-function downloadReport(type) {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const w = pdf.internal.pageSize.getWidth();
-  const d = report.diagnostics;
-  const now = new Date();
-  const dev = `${report.device.detected.brand} ${report.device.detected.model}`;
-  const overallResult = type === 'full' ? report.finalResult : report.stage1Result;
-
-  // Colors
-  const dark = [6, 68, 74];
-  const teal = [68, 192, 197];
-  const deepTeal = [17, 127, 132];
-  const passGreen = [16, 185, 129];
-  const failRed = [239, 68, 68];
-  const warnAmber = [245, 158, 11];
-  const gray = [120, 140, 142];
-  const lightBg = [246, 251, 251];
-
-  let y = 0;
-
-  // ---- HEADER BAR ----
-  pdf.setFillColor(...dark);
-  pdf.rect(0, 0, w, 28, 'F');
-  pdf.setFontSize(16);
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Nexacore', 15, 12);
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(180, 220, 222);
-  pdf.text('Device Protection Assessment', 15, 19);
-  // Result badge top-right
-  const badgeColor = overallResult === 'pass' ? passGreen : failRed;
-  const badgeText = overallResult === 'pass' ? 'PASS' : 'FAIL';
-  pdf.setFillColor(...badgeColor);
-  pdf.roundedRect(w - 40, 7, 28, 14, 3, 3, 'F');
-  pdf.setFontSize(11);
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(badgeText, w - 26, 16, { align: 'center' });
-
-  y = 38;
-
-  // ---- REPORT TITLE ----
-  pdf.setFontSize(13);
-  pdf.setTextColor(...dark);
-  pdf.setFont('helvetica', 'bold');
-  const reportTitle = type === 'full' ? 'Full Assessment Report' : 'Stage 1 Report — Diagnostics & IMEI';
-  pdf.text(reportTitle, 15, y);
-  y += 8;
-
-  // ---- META INFO ----
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(...gray);
-  pdf.text(`Reference: ${report.id}`, 15, y);
-  pdf.text(`Date: ${now.toLocaleDateString('en-MY')} ${now.toLocaleTimeString('en-MY', {hour:'2-digit',minute:'2-digit'})}`, w - 15, y, { align: 'right' });
-  y += 5;
-  pdf.text(`Stage: ${type === 'full' ? '2 of 2 (Complete)' : '1 of 2 (Diagnostics)'}`, 15, y);
-  y += 10;
-
-  // ---- DEVICE INFO CARD ----
-  pdf.setFillColor(...lightBg);
-  pdf.roundedRect(15, y, w - 30, 30, 3, 3, 'F');
-  pdf.setDrawColor(224, 237, 237);
-  pdf.roundedRect(15, y, w - 30, 30, 3, 3, 'S');
-  y += 7;
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...dark);
-  pdf.text('Device Information', 20, y);
-  y += 6;
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(...gray);
-  pdf.text(`Device: ${dev}`, 20, y);
-  pdf.text(`Platform: ${report.device.detected.specs?.platform || navigator.platform || 'N/A'}`, w/2 + 10, y);
-  y += 5;
-  const sp = report.device.detected.specs || {};
-  pdf.text(`Screen: ${sp.screenWidth || screen.width}x${sp.screenHeight || screen.height}`, 20, y);
-  pdf.text(`CPU: ${sp.cpuCores || navigator.hardwareConcurrency || 'N/A'} cores`, w/2 + 10, y);
-  y += 5;
-  const ramVal = sp.deviceMemory || navigator.deviceMemory;
-  pdf.text(`RAM: ${ramVal && ramVal !== 'unknown' ? ramVal + ' GB' : 'Not available (iOS)'}`, 20, y);
-  pdf.text(`Profile: ${report.device.fingerprint}`, w/2 + 10, y);
-  y += 6;
-  // IMEI line (OCR result)
-  const imeiText = (report.imei && report.imei.extracted)
-    ? `IMEI: ${report.imei.extracted}${report.imei.valid ? ' (verified)' : ' (unverified)'}`
-    : 'IMEI: not extracted';
-  pdf.setTextColor(...dark);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(imeiText, 20, y);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(...gray);
-  y += 8;
-
-  // ---- DIAGNOSTIC RESULTS TABLE ----
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(...dark);
-  pdf.text('Diagnostic Results', 15, y);
-  y += 7;
-
-  // Table header
-  pdf.setFillColor(...deepTeal);
-  pdf.rect(15, y, w - 30, 8, 'F');
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(255, 255, 255);
-  pdf.text('CHECK', 20, y + 5.5);
-  pdf.text('STATUS', 80, y + 5.5);
-  pdf.text('DETAILS', 110, y + 5.5);
-  y += 8;
-
-  // Table rows
-  const checks = [
-    { name: 'Device Identity', status: d.identity.status, detail: d.identity.data.brand ? `${d.identity.data.brand} ${d.identity.data.model}` : 'Detected' },
-    { name: 'Cameras', status: d.camera.status, detail: `Front: ${d.camera.data.front?.working ? 'OK' : 'Fail'}, Rear: ${d.camera.data.rear?.working ? 'OK' : 'Fail'}` },
-    { name: 'Sensors', status: d.sensors.status, detail: `Accel: ${d.sensors.data.accelerometer ? 'OK' : 'Fail'}, Gyro: ${d.sensors.data.gyroscope ? 'OK' : 'Fail'}` },
-    { name: 'Microphone', status: d.mic.status, detail: d.mic.data.working ? 'Microphone active' : (d.mic.data.error || 'Microphone not responsive') },
-    { name: 'Speaker', status: d.speaker.status, detail: d.speaker.data.working ? 'Audio output active' : (d.speaker.data.reason || 'Speaker test failed') },
-    { name: 'Display', status: d.screen.status, detail: `Zones: ${d.screen.data.touchZonesCovered || 0}/9` },
-    { name: 'IMEI Screenshot', status: report.imei && report.imei.screenshot ? 'passed' : 'failed', detail: report.imei && report.imei.timestamp ? `Captured ${new Date(report.imei.timestamp).toLocaleTimeString('en-MY')}` : 'Not captured' },
-    { name: 'IMEI Number', status: report.imei && report.imei.extracted ? (report.imei.valid ? 'passed' : 'warning') : 'failed', detail: report.imei && report.imei.extracted ? (report.imei.valid ? `${report.imei.extracted} (verified)` : `${report.imei.extracted} (unverified)`) : 'OCR could not extract IMEI' }
-  ];
-
-  if (type === 'full') {
-    const photoCount = report.photos ? [report.photos.screen, report.photos.back].filter(Boolean).length : 0;
-    checks.push({ name: 'Condition Photos', status: photoCount >= 2 ? 'passed' : 'failed', detail: `${photoCount} of 2 photos submitted` });
-  }
-
-  checks.forEach((c, i) => {
-    const rowBg = i % 2 === 0 ? [255, 255, 255] : lightBg;
-    pdf.setFillColor(...rowBg);
-    pdf.rect(15, y, w - 30, 8, 'F');
-
-    pdf.setFontSize(8.5);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...dark);
-    pdf.text(c.name, 20, y + 5.5);
-
-    // Status badge
-    const sc = c.status === 'passed' ? passGreen : c.status === 'failed' ? failRed : warnAmber;
-    const st = c.status === 'passed' ? 'PASS' : c.status === 'failed' ? 'FAIL' : 'WARN';
-    pdf.setFillColor(...sc);
-    pdf.roundedRect(80, y + 1.5, 18, 5, 1.5, 1.5, 'F');
-    pdf.setFontSize(6.5);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(255, 255, 255);
-    pdf.text(st, 89, y + 5, { align: 'center' });
-
-    pdf.setFontSize(7.5);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...gray);
-    pdf.text(c.detail, 110, y + 5.5);
-    y += 8;
-  });
-
-  // Table border
-  pdf.setDrawColor(224, 237, 237);
-  pdf.rect(15, y - (checks.length * 8) - 8, w - 30, (checks.length + 1) * 8, 'S');
-  y += 10;
-
-  // ---- IMEI SCREENSHOT ----
-  if (report.imei && report.imei.screenshot) {
-    // Check if we need a new page
-    if (y > 200) { pdf.addPage(); y = 20; }
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(...dark);
-    pdf.text('IMEI Screenshot', 15, y);
-    y += 3;
-    pdf.setFontSize(7);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...gray);
-    pdf.text('Captured from device via *#06# dialler', 15, y + 4);
-    y += 8;
-    try {
-      const imgW = 60;
-      const imgH = 100;
-      if (y + imgH > 280) { pdf.addPage(); y = 20; }
-      const imeiFormat = report.imei.screenshot.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
-      pdf.addImage(report.imei.screenshot, imeiFormat, 15, y, imgW, imgH);
-      pdf.setDrawColor(224, 237, 237);
-      pdf.rect(15, y, imgW, imgH, 'S');
-      y += imgH + 10;
-    } catch (e) {
-      pdf.setFontSize(8);
-      pdf.setTextColor(...gray);
-      pdf.text('(IMEI image could not be embedded)', 15, y);
-      y += 10;
-    }
-  }
-
-  // ---- CONDITION PHOTOS ----
-  const conditionPhotos = [];
-  if (report.photos) {
-    if (report.photos.screen) conditionPhotos.push({ label: 'Screen (Front)', data: report.photos.screen.data });
-    if (report.photos.back) conditionPhotos.push({ label: 'Back', data: report.photos.back.data });
-  }
-  if (type === 'full' && conditionPhotos.length > 0) {
-    if (y > 180) { pdf.addPage(); y = 20; }
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(...dark);
-    pdf.text('Condition Photos', 15, y);
-    y += 8;
-    conditionPhotos.forEach((photo, i) => {
-      try {
-        const imgW = 55;
-        const imgH = 70;
-        const xPos = 15 + (i * (imgW + 10));
-        if (xPos + imgW > w - 15) return;
-        if (y + imgH > 280) { pdf.addPage(); y = 20; }
-        pdf.addImage(photo.data, 'JPEG', xPos, y, imgW, imgH);
-        pdf.setDrawColor(224, 237, 237);
-        pdf.rect(xPos, y, imgW, imgH, 'S');
-        // Label under photo
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(...gray);
-        pdf.text(photo.label, xPos + imgW/2, y + imgH + 4, { align: 'center' });
-      } catch(e) { /* skip unembeddable photo */ }
-    });
-    y += 80;
-  }
-
-  // ---- FOOTER ----
-  const pageCount = pdf.internal.getNumberOfPages();
-  for (let p = 1; p <= pageCount; p++) {
-    pdf.setPage(p);
-    const ph = pdf.internal.pageSize.getHeight();
-    pdf.setFillColor(...dark);
-    pdf.rect(0, ph - 14, w, 14, 'F');
-    pdf.setFontSize(7);
-    pdf.setTextColor(180, 220, 222);
-    pdf.text('Nexacore Device Protection', 15, ph - 5);
-    pdf.text(`${report.id} | Page ${p} of ${pageCount}`, w - 15, ph - 5, { align: 'right' });
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(6);
-    pdf.text('CONFIDENTIAL — For insurer policy file use only', w/2, ph - 5, { align: 'center' });
-  }
-
-  // Save
-  const filename = `nexacore-${type === 'full' ? 'full' : 'stage1'}-${report.id}.pdf`;
-  pdf.save(filename);
-}
 
 function finishCheck() {
   nxShowBanner(`Assessment complete. Reference: ${report.id}`, 'info');
