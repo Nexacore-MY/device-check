@@ -205,13 +205,15 @@ Analyze this image and respond with ONLY valid JSON in this exact structure (no 
 }
 
 Critical guidance:
-- A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface.
+- This is for INSURANCE ENROLMENT. Missing pre-existing damage costs the insurer money. Prefer false-positive over false-negative for ANY damage detection.
+- CRACKS: any visible line, fracture, or break in the glass surface — even a single hairline — must be reported as a crack (screen_crack or back_glass_crack), NOT as a scratch. If unsure between crack and scratch, classify as crack with medium confidence.
+- A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface, often originating from an impact point.
+- SCRATCHES are surface marks that don't penetrate the glass — they show no spider pattern or impact origin.
 - "phone_case_visible": true ONLY if a hard or soft protective CASE is clearly fitted around the device — a rigid shell or rubbery sleeve that wraps the back and edges with material distinct from the device body. A bare device held by a hand returns FALSE. Skin, fingers, or palm holding the device do NOT count as a case. A clear/transparent case still counts as a case if you can see its edges or seams.
 - A clear screen protector on the FRONT is NOT a case. Only worry about cases on the back/edges.
 - "is_fold_phone_closed" = true only if it's a fold/flip phone (Z Fold, Z Flip, Razr etc.) in closed state.
-- For ${photoKind === "back" ? "BACK photos: this is the critical one for case detection. Look for material covering the device back that has a different colour, texture, or edge profile than the device body itself." : "SCREEN photos: judge condition of the front glass and bezels. Case detection is not enforced on screen photos."}
-- Only report damage you can clearly see. Prefer "low" confidence over false positives.
-- "condition_score": 10 = pristine, 7-9 = minor wear, 4-6 = visible damage, 1-3 = heavily damaged.
+- For ${photoKind === "back" ? "BACK photos: this is the critical one for case detection. Look for material covering the device back that has a different colour, texture, or edge profile than the device body itself." : "SCREEN photos: examine front glass carefully for ANY crack lines, even small ones — they are the most common pre-existing damage."}
+- "condition_score": 10 = pristine, 7-9 = minor wear (scratches only), 4-6 = visible damage including any crack, 1-3 = heavily damaged.
 
 Output only the JSON.`;
 
@@ -311,12 +313,15 @@ function evaluatePhotoAnalysis(
       user_message: "Please open your phone fully (unfold it) before taking the photo.",
     };
   }
-  // Damage rejection — only HIGH-confidence moderate/severe damage on critical surfaces
-  const rejectableDamage = (analysis.damage || []).find((d) =>
-    (d.type === "screen_crack" || d.type === "back_glass_crack" || d.type === "structural_damage")
-    && (d.severity === "moderate" || d.severity === "severe")
-    && d.confidence === "high"
-  );
+  // Damage rejection — for ADP we prefer false-positive over false-negative.
+  // Reject any cracks/structural damage with medium-or-better confidence,
+  // OR any high-confidence damage of any severity.
+  const rejectableDamage = (analysis.damage || []).find((d) => {
+    const isCriticalType = d.type === "screen_crack" || d.type === "back_glass_crack" || d.type === "structural_damage";
+    if (isCriticalType && d.confidence !== "low") return true;  // catches any crack with med+ confidence
+    if (d.confidence === "high" && d.severity !== "minor") return true;  // catches high-conf scratches/dents too
+    return false;
+  });
   if (rejectableDamage) {
     return {
       rejected: true,
@@ -453,26 +458,23 @@ Deno.serve(async (req) => {
       console.error("Photo analysis error:", analysisError);
     }
 
-    // If analysis errored (timeout / API outage), accept the photo but flag for review
+    // If analysis errored (timeout / API outage), DO NOT accept silently.
+    // For ADP, every photo must be analyzed. Delete the upload and ask user to retry.
     if (!analysis) {
-      const { error: dbErr } = await supabase.from("photos").upsert({
-        session_id: session.id,
-        slot: kind,
-        storage_path: path,
-        size_bytes: file.size,
-        mime_type: "image/jpeg",
-      }, { onConflict: "session_id,slot" });
-      if (dbErr) throw new Error(`DB upsert failed: ${dbErr.message}`);
-
+      await supabase.storage.from(bucket).remove([path]).catch(() => {});
       await supabase.from("audit_log").insert({
         session_id: session.id,
         partner_id: session.partner_id,
-        event_type: "photo_uploaded",
-        actor_type: "customer",
-        event_data: { slot: kind, size: file.size, path, analysis_error: analysisError },
+        event_type: "photo_analysis_failed",
+        actor_type: "system",
+        event_data: { slot: kind, size: file.size, error: analysisError },
       });
-
-      return json({ success: true, path, analysis_unavailable: true });
+      return json({
+        rejected: true,
+        reason: "analysis_failed",
+        user_message: "We couldn't check your photo right now. Please try again in a moment.",
+        analysis_error: analysisError,
+      }, 422);
     }
 
     // Apply rejection rules

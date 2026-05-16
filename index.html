@@ -1223,8 +1223,12 @@
         <span><strong>Back photo:</strong> Turn your phone around so the back faces the mirror. Your back camera will capture the back of the device in the reflection.</span>
       </div>
       <div class="mirror-step">
+        <span class="mirror-step-icon">📏</span>
+        <span><strong>Get as close to the mirror as possible</strong> — almost touching it. This is the most important step for accurate damage detection.</span>
+      </div>
+      <div class="mirror-step">
         <span class="mirror-step-icon">💡</span>
-        <span>Use good lighting. Make sure the full device is visible in the reflection, including edges and corners.</span>
+        <span>Use good lighting but avoid direct glare on the screen. Make sure the full device is visible, including edges and corners.</span>
       </div>
     </div>
 
@@ -2541,6 +2545,15 @@ async function handlePhoto(event) {
 
 // ===================== STAGE 2 SUBMIT =====================
 async function submitStage2() {
+  // Defensive guard — regardless of button state, photos MUST be present
+  if (!report.photos.screen || !report.photos.back) {
+    nxShowBanner('Please successfully upload both screen and back photos before submitting.', 'error');
+    // Re-sync button state
+    const submitBtn = document.getElementById('btnPhotoSubmit');
+    if (submitBtn) submitBtn.disabled = true;
+    return;
+  }
+
   const submitBtn = document.getElementById('btnPhotoSubmit');
   if (submitBtn) {
     submitBtn.disabled = true;
