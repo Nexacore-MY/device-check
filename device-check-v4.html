@@ -1410,12 +1410,37 @@ function nxShowBanner(msg, kind) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'nxBanner';
-    el.style.cssText = 'padding:10px 16px;text-align:center;font-size:12px;font-weight:600;font-family:Quicksand,sans-serif;';
-    document.querySelector('.app').insertBefore(el, document.querySelector('.app').firstChild);
+    el.style.cssText = `
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      max-width: 92%; width: max-content;
+      padding: 12px 18px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; font-family: Quicksand, sans-serif;
+      box-shadow: 0 8px 24px rgba(6,68,74,0.25);
+      z-index: 10000; line-height: 1.4; text-align: center;
+      cursor: pointer;
+      opacity: 0; transform: translateX(-50%) translateY(20px);
+      transition: opacity 0.2s, transform 0.2s;
+    `;
+    el.onclick = () => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(20px)'; };
+    document.body.appendChild(el);
   }
+  // Clear any previous auto-dismiss timer
+  if (el._dismissTimer) { clearTimeout(el._dismissTimer); el._dismissTimer = null; }
+
   el.textContent = msg;
   el.style.background = kind === 'error' ? '#FEE2E2' : kind === 'warning' ? '#FEF3C7' : '#CEF1F2';
   el.style.color = kind === 'error' ? '#991B1B' : kind === 'warning' ? '#92400E' : '#06444A';
+  el.style.border = `2px solid ${kind === 'error' ? '#EF4444' : kind === 'warning' ? '#F59E0B' : '#44C0C5'}`;
+  el.style.opacity = '1';
+  el.style.transform = 'translateX(-50%) translateY(0)';
+
+  // Auto-dismiss info messages after 5s; errors and warnings stay until tapped
+  if (kind !== 'error' && kind !== 'warning') {
+    el._dismissTimer = setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(-50%) translateY(20px)';
+    }, 5000);
+  }
 }
 
 function nxShowError(msg) {

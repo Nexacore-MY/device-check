@@ -206,9 +206,10 @@ Analyze this image and respond with ONLY valid JSON in this exact structure (no 
 
 Critical guidance:
 - A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface.
-- "phone_case_visible" = true only if a protective case is clearly fitted to the device body. A bare device returns false.
+- "phone_case_visible": true ONLY if a hard or soft protective CASE is clearly fitted around the device — a rigid shell or rubbery sleeve that wraps the back and edges with material distinct from the device body. A bare device held by a hand returns FALSE. Skin, fingers, or palm holding the device do NOT count as a case. A clear/transparent case still counts as a case if you can see its edges or seams.
+- A clear screen protector on the FRONT is NOT a case. Only worry about cases on the back/edges.
 - "is_fold_phone_closed" = true only if it's a fold/flip phone (Z Fold, Z Flip, Razr etc.) in closed state.
-- For ${photoKind === "back" ? "BACK photos: pay close attention to whether a case is hiding the device." : "SCREEN photos: judge condition of the front glass and bezels."}
+- For ${photoKind === "back" ? "BACK photos: this is the critical one for case detection. Look for material covering the device back that has a different colour, texture, or edge profile than the device body itself." : "SCREEN photos: judge condition of the front glass and bezels. Case detection is not enforced on screen photos."}
 - Only report damage you can clearly see. Prefer "low" confidence over false positives.
 - "condition_score": 10 = pristine, 7-9 = minor wear, 4-6 = visible damage, 1-3 = heavily damaged.
 
@@ -222,10 +223,9 @@ async function analyzePhotoGemini(
   const creds = JSON.parse(GCP_CREDENTIALS);
   const token = await getGcpAccessToken();
   const project = creds.project_id;
-  // Use the public Generative Language API endpoint via Gemini
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=`;
   // Vertex AI route (uses our service account token):
-  const vertexUrl = `https://us-central1-aiplatform.googleapis.com/v1/projects/${project}/locations/us-central1/publishers/google/models/gemini-2.0-flash:generateContent`;
+  const GEMINI_MODEL = "gemini-2.5-flash";
+  const vertexUrl = `https://us-central1-aiplatform.googleapis.com/v1/projects/${project}/locations/us-central1/publishers/google/models/${GEMINI_MODEL}:generateContent`;
   const b64 = imageBytesToBase64(imageBytes);
 
   const resp = await fetch(vertexUrl, {
