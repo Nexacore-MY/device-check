@@ -342,6 +342,61 @@
 
   tr.session-row { cursor: pointer; }
   tr.session-row:hover td { background: var(--ice); }
+
+  /* ===== STATS BAR ===== */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--text-light);
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 24px; font-weight: 800;
+    color: var(--dark);
+    line-height: 1.1;
+  }
+  .stat-sub {
+    font-size: 11px; color: var(--text-light); margin-top: 2px; font-weight: 600;
+  }
+  .stat-card .stat-value.success { color: var(--success); }
+  .stat-card .stat-value.danger { color: var(--danger); }
+
+  /* ===== FILTERS ===== */
+  .filters-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .filter-input, .filter-select {
+    padding: 8px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    background: var(--white);
+    color: var(--text);
+  }
+  .filter-input { flex: 1; min-width: 180px; }
+  .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--teal); }
+  .filter-count {
+    font-size: 12px; color: var(--text-light);
+    font-weight: 600; margin-left: auto;
+  }
 </style>
 </head>
 <body>
@@ -362,6 +417,14 @@
 
   <div id="configWarning" class="config-warning" style="display:none;">
     <strong>Config not loaded.</strong> Make sure <code>admin-config.js</code> exists in this folder.
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-label">Sessions today</div><div class="stat-value" id="statToday">—</div><div class="stat-sub" id="statTodaySub"></div></div>
+    <div class="stat-card"><div class="stat-label">Pass rate</div><div class="stat-value" id="statPassRate">—</div><div class="stat-sub" id="statPassRateSub"></div></div>
+    <div class="stat-card"><div class="stat-label">In progress</div><div class="stat-value" id="statInProgress">—</div><div class="stat-sub">currently being run</div></div>
+    <div class="stat-card"><div class="stat-label">Top device</div><div class="stat-value" id="statTopDevice" style="font-size:14px;line-height:1.3">—</div><div class="stat-sub" id="statTopDeviceSub"></div></div>
   </div>
 
   <!-- Create session -->
@@ -403,6 +466,30 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <div class="card-title" style="margin-bottom:0;">Recent sessions</div>
       <button class="btn btn-secondary btn-small" onclick="loadSessions()">Refresh</button>
+    </div>
+    <div class="filters-row">
+      <input type="text" id="filterSearch" class="filter-input" placeholder="Search policy ref or token…" oninput="applyFilters()">
+      <select id="filterStatus" class="filter-select" onchange="applyFilters()">
+        <option value="">All statuses</option>
+        <option value="created">Created</option>
+        <option value="stage1_in_progress">Stage 1 in progress</option>
+        <option value="stage1_complete">Stage 1 complete</option>
+        <option value="stage2_in_progress">Stage 2 in progress</option>
+        <option value="complete">Complete</option>
+        <option value="failed">Failed</option>
+        <option value="expired">Expired</option>
+      </select>
+      <select id="filterResult" class="filter-select" onchange="applyFilters()">
+        <option value="">All results</option>
+        <option value="pass">Pass</option>
+        <option value="fail">Fail</option>
+        <option value="pending">Pending</option>
+      </select>
+      <select id="filterSort" class="filter-select" onchange="applyFilters()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+      </select>
+      <span class="filter-count" id="filterCount"></span>
     </div>
     <div id="sessionsContainer">
       <div class="empty-state">Loading...</div>
@@ -554,28 +641,110 @@ async function createSession() {
   }
 }
 
+let sessionsCache = [];
+
 async function loadSessions() {
   if (!sb) return;
   const container = document.getElementById('sessionsContainer');
   container.innerHTML = '<div class="empty-state">Loading...</div>';
 
+  // Bigger limit so stats are meaningful — admin app, not customer-facing
   const { data, error } = await sb.rpc('admin_list_sessions', {
     p_admin_token: adminToken,
     p_partner_slug: cfg.DEMO_PARTNER_SLUG,
-    p_limit: 20
+    p_limit: 100
   });
 
   if (error) {
     container.innerHTML = `<div class="empty-state">Error loading: ${escapeHtml(error.message)}</div>`;
     return;
   }
-  if (!data.length) {
+  sessionsCache = data || [];
+  updateStats();
+  applyFilters();
+}
+
+function updateStats() {
+  const all = sessionsCache;
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const todayCount = all.filter(s => new Date(s.created_at) >= startOfDay).length;
+  const completed = all.filter(s => s.overall_result === 'pass' || s.overall_result === 'fail');
+  const passed = completed.filter(s => s.overall_result === 'pass').length;
+  const passRate = completed.length ? Math.round(100 * passed / completed.length) : null;
+  const inProgress = all.filter(s => s.status === 'stage1_in_progress' || s.status === 'stage2_in_progress' || s.status === 'created').length;
+
+  // Top device by brand
+  const brandCounts = {};
+  all.forEach(s => {
+    const b = s.device_brand || 'Unknown';
+    brandCounts[b] = (brandCounts[b] || 0) + 1;
+  });
+  const top = Object.entries(brandCounts).sort((a,b) => b[1]-a[1])[0];
+
+  document.getElementById('statToday').textContent = todayCount;
+  document.getElementById('statTodaySub').textContent = `of ${all.length} total`;
+  const passEl = document.getElementById('statPassRate');
+  passEl.textContent = passRate !== null ? `${passRate}%` : '—';
+  passEl.className = 'stat-value ' + (passRate === null ? '' : passRate >= 80 ? 'success' : passRate >= 50 ? '' : 'danger');
+  document.getElementById('statPassRateSub').textContent = completed.length ? `${passed}/${completed.length} completed` : 'no completions';
+  document.getElementById('statInProgress').textContent = inProgress;
+  if (top) {
+    document.getElementById('statTopDevice').textContent = top[0];
+    document.getElementById('statTopDeviceSub').textContent = `${top[1]} session${top[1]===1?'':'s'}`;
+  } else {
+    document.getElementById('statTopDevice').textContent = '—';
+    document.getElementById('statTopDeviceSub').textContent = '';
+  }
+}
+
+function applyFilters() {
+  const container = document.getElementById('sessionsContainer');
+  if (sessionsCache.length === 0) {
     container.innerHTML = '<div class="empty-state">No sessions yet. Create one above.</div>';
+    document.getElementById('filterCount').textContent = '';
     return;
   }
 
-  const rows = data.map(s => {
-    const url = `${cfg.CHECK_URL_BASE}#s=${s.token}`;
+  const searchTerm = (document.getElementById('filterSearch').value || '').toLowerCase().trim();
+  const statusFilter = document.getElementById('filterStatus').value;
+  const resultFilter = document.getElementById('filterResult').value;
+  const sortOrder = document.getElementById('filterSort').value;
+
+  let filtered = sessionsCache.slice();
+
+  if (searchTerm) {
+    filtered = filtered.filter(s =>
+      (s.policy_ref || '').toLowerCase().includes(searchTerm) ||
+      (s.token || '').toLowerCase().includes(searchTerm) ||
+      (s.device_brand || '').toLowerCase().includes(searchTerm) ||
+      (s.device_model || '').toLowerCase().includes(searchTerm) ||
+      (s.imei_extracted || '').toLowerCase().includes(searchTerm)
+    );
+  }
+  if (statusFilter) filtered = filtered.filter(s => s.status === statusFilter);
+  if (resultFilter === 'pending') {
+    filtered = filtered.filter(s => !s.overall_result && !s.stage1_result);
+  } else if (resultFilter) {
+    filtered = filtered.filter(s => s.overall_result === resultFilter || (!s.overall_result && s.stage1_result === resultFilter));
+  }
+
+  filtered.sort((a, b) => {
+    const da = new Date(a.created_at).getTime();
+    const db = new Date(b.created_at).getTime();
+    return sortOrder === 'oldest' ? da - db : db - da;
+  });
+
+  document.getElementById('filterCount').textContent =
+    `${filtered.length} of ${sessionsCache.length} session${sessionsCache.length===1?'':'s'}`;
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state">No sessions match your filters.</div>';
+    return;
+  }
+
+  const rows = filtered.map(s => {
     const device = (s.device_brand || s.device_model) ? `${s.device_brand || ''} ${s.device_model || ''}`.trim() : '—';
     const policy = s.policy_ref || '—';
     const result = s.overall_result || s.stage1_result || '—';
@@ -595,7 +764,6 @@ async function loadSessions() {
         <td>${imei}</td>
         <td>${escapeHtml(s.language)}</td>
         <td class="meta">${escapeHtml(created)}</td>
-        <td><button class="btn btn-secondary btn-small" onclick="event.stopPropagation(); copyText('${escapeAttr(url)}')">Copy</button></td>
       </tr>
     `;
   }).join('');
@@ -612,7 +780,6 @@ async function loadSessions() {
           <th>IMEI</th>
           <th>Lang</th>
           <th>Created</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
