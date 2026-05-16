@@ -480,8 +480,31 @@ Deno.serve(async (req) => {
     // Apply rejection rules
     const verdict = evaluatePhotoAnalysis(analysis, kind as "screen" | "back");
     if (verdict.rejected) {
-      // Clean up — don't keep rejected photos
-      await supabase.storage.from(bucket).remove([path]).catch(() => {});
+      if (verdict.reason === "pre_existing_damage") {
+        // KEEP the photo as evidence — partner needs to review it.
+        // Mark photo row with status, mark session as failed permanently.
+        const { error: photoErr } = await supabase.from("photos").upsert({
+          session_id: session.id,
+          slot: kind,
+          storage_path: path,
+          size_bytes: file.size,
+          mime_type: "image/jpeg",
+          status: "rejected_damage",
+        }, { onConflict: "session_id,slot" });
+        if (photoErr) console.error("Photo record (rejected_damage) failed:", photoErr);
+
+        // Mark session as terminally failed — no retries, can't be reopened
+        const { error: sessionErr } = await supabase.from("sessions").update({
+          status: "failed",
+          stage2_result: "fail",
+          overall_result: "fail",
+          stage2_completed_at: new Date().toISOString(),
+        }).eq("id", session.id);
+        if (sessionErr) console.error("Session-failed update failed:", sessionErr);
+      } else {
+        // Other (remediable) rejections: clean up so user can retry
+        await supabase.storage.from(bucket).remove([path]).catch(() => {});
+      }
 
       await supabase.from("audit_log").insert({
         session_id: session.id,

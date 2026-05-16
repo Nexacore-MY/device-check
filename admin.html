@@ -942,13 +942,22 @@ function renderDetailBody(data, sessionToken) {
     <div class="detail-section">
       <div class="detail-section-title">Condition photos (${photos.length})</div>
       <div class="detail-image-row">
-        ${photos.map(p => `
-          <div class="detail-image-col">
-            <div class="photo-label">${escapeHtml(p.slot)}</div>
-            ${p.signed_url ? `<img src="${escapeAttr(p.signed_url)}" class="detail-image" alt="${escapeHtml(p.slot)} photo">` : '<div class="detail-empty">No URL</div>'}
-            <div class="meta" style="margin-top:4px">${escapeHtml(p.mime_type || '')} · ${p.size_bytes ? Math.round(p.size_bytes/1024) + ' KB' : ''}</div>
-          </div>
-        `).join('')}
+        ${photos.map(p => {
+          const isRejected = p.status === 'rejected_damage';
+          const badge = isRejected
+            ? '<div style="position:absolute;top:6px;left:6px;background:var(--danger);color:white;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:0.5px;font-family:Montserrat,sans-serif;">Damage rejected</div>'
+            : '';
+          const imgStyle = isRejected ? 'border:2px solid var(--danger);' : '';
+          return `
+            <div class="detail-image-col">
+              <div class="photo-label">${escapeHtml(p.slot)}${isRejected ? ' — REJECTED' : ''}</div>
+              ${p.signed_url
+                ? `<div style="position:relative;display:inline-block;">${badge}<img src="${escapeAttr(p.signed_url)}" class="detail-image" style="${imgStyle}" alt="${escapeHtml(p.slot)} photo"></div>`
+                : '<div class="detail-empty">No URL</div>'}
+              <div class="meta" style="margin-top:4px">${escapeHtml(p.mime_type || '')} · ${p.size_bytes ? Math.round(p.size_bytes/1024) + ' KB' : ''}${isRejected ? ' · <span style="color:var(--danger);font-weight:700">DAMAGE EVIDENCE</span>' : ''}</div>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;

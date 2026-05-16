@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         .order("check_name"),
       supabase
         .from("photos")
-        .select("slot, storage_path, size_bytes, mime_type, uploaded_at")
+        .select("slot, storage_path, size_bytes, mime_type, status, uploaded_at")
         .eq("session_id", session.id),
       supabase
         .from("audit_log")
