@@ -34,6 +34,10 @@
     min-height: 100dvh;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    transition: padding-bottom 0.2s ease;
+  }
+  body.nx-banner-active {
+    padding-bottom: 88px; /* room for the fixed bottom banner without covering buttons */
   }
 
   h1, h2, h3, .section-title, .card-title, .header-title {
@@ -1409,41 +1413,57 @@ async function nxLoadSession() {
   }
 }
 
+function nxHideBanner() {
+  const el = document.getElementById('nxBanner');
+  if (!el) return;
+  if (el._dismissTimer) { clearTimeout(el._dismissTimer); el._dismissTimer = null; }
+  el.style.opacity = '0';
+  el.style.transform = 'translateX(-50%) translateY(20px)';
+  el.style.pointerEvents = 'none';
+  // Remove body padding after transition completes so layout settles
+  setTimeout(() => {
+    if (el.style.opacity === '0') document.body.classList.remove('nx-banner-active');
+  }, 220);
+}
+
 function nxShowBanner(msg, kind) {
   let el = document.getElementById('nxBanner');
   if (!el) {
     el = document.createElement('div');
     el.id = 'nxBanner';
     el.style.cssText = `
-      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-      max-width: 92%; width: max-content;
-      padding: 12px 18px; border-radius: 12px;
+      position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%) translateY(20px);
+      max-width: calc(100% - 24px); width: max-content;
+      padding: 12px 18px 12px 18px; border-radius: 12px;
       font-size: 13px; font-weight: 600; font-family: Quicksand, sans-serif;
       box-shadow: 0 8px 24px rgba(6,68,74,0.25);
       z-index: 10000; line-height: 1.4; text-align: center;
       cursor: pointer;
-      opacity: 0; transform: translateX(-50%) translateY(20px);
+      opacity: 0;
       transition: opacity 0.2s, transform 0.2s;
+      display: flex; align-items: center; gap: 10px;
     `;
-    el.onclick = () => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(20px)'; };
+    el.onclick = nxHideBanner;
     document.body.appendChild(el);
   }
   // Clear any previous auto-dismiss timer
   if (el._dismissTimer) { clearTimeout(el._dismissTimer); el._dismissTimer = null; }
 
-  el.textContent = msg;
+  // Build message + close-hint
+  el.innerHTML = `<span style="flex:1">${msg.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span><span style="opacity:0.6;font-size:18px;line-height:1">×</span>`;
   el.style.background = kind === 'error' ? '#FEE2E2' : kind === 'warning' ? '#FEF3C7' : '#CEF1F2';
   el.style.color = kind === 'error' ? '#991B1B' : kind === 'warning' ? '#92400E' : '#06444A';
   el.style.border = `2px solid ${kind === 'error' ? '#EF4444' : kind === 'warning' ? '#F59E0B' : '#44C0C5'}`;
   el.style.opacity = '1';
   el.style.transform = 'translateX(-50%) translateY(0)';
+  el.style.pointerEvents = 'auto';
+
+  // Push page content up so the banner doesn't cover bottom buttons
+  document.body.classList.add('nx-banner-active');
 
   // Auto-dismiss info messages after 5s; errors and warnings stay until tapped
   if (kind !== 'error' && kind !== 'warning') {
-    el._dismissTimer = setTimeout(() => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateX(-50%) translateY(20px)';
-    }, 5000);
+    el._dismissTimer = setTimeout(nxHideBanner, 5000);
   }
 }
 
@@ -2657,13 +2677,48 @@ async function submitStage2() {
 
 
 function finishCheck() {
-  nxShowBanner(`Assessment complete. Reference: ${report.id}`, 'info');
-  // Disable the Done button so it's clear the action was taken
-  const finalBtn = document.querySelector('#screen-7 .btn-success');
-  if (finalBtn) {
-    finalBtn.disabled = true;
-    finalBtn.style.opacity = '0.4';
-    finalBtn.style.cursor = 'not-allowed';
+  const screen = document.getElementById('screen-7');
+  if (!screen) return;
+
+  // Hide everything currently on the final screen and replace with a clear submitted state
+  Array.from(screen.children).forEach(child => { child.style.display = 'none'; });
+
+  const partnerName = (NX.partner && NX.partner.name) ? NX.partner.name : 'your provider';
+
+  const submitted = document.createElement('div');
+  submitted.id = 'submittedState';
+  submitted.style.cssText = 'flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 20px; gap:8px;';
+  submitted.innerHTML = `
+    <div style="width:120px; height:120px; border-radius:50%; background:#D1FAE5; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(16,185,129,0.25); animation: nxPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);">
+      <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="var(--success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12l5 5L20 7" style="stroke-dasharray:30; stroke-dashoffset:30; animation: nxCheck 0.4s 0.3s forwards;"/>
+      </svg>
+    </div>
+    <h2 style="font-family:Montserrat,sans-serif; font-size:26px; font-weight:800; color:var(--dark); margin-top:24px; letter-spacing:-0.5px;">Submitted</h2>
+    <p style="font-size:15px; color:var(--text-light); font-weight:500; line-height:1.6; max-width:320px;">Your device assessment has been sent to ${partnerName.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}.</p>
+    <div style="margin-top:24px; padding:16px 24px; background:var(--ice); border-radius:12px; min-width:200px;">
+      <div style="font-family:Montserrat,sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--deep-teal); margin-bottom:4px;">Assessment Reference</div>
+      <div style="font-family:Montserrat,sans-serif; font-size:22px; font-weight:800; color:var(--dark); letter-spacing:2px;">${report.id}</div>
+    </div>
+    <p style="font-size:13px; color:var(--text-light); margin-top:32px; font-weight:500;">You can now close this page.</p>
+  `;
+  screen.appendChild(submitted);
+
+  // Inject keyframes if not present
+  if (!document.getElementById('nxSubmittedAnim')) {
+    const style = document.createElement('style');
+    style.id = 'nxSubmittedAnim';
+    style.textContent = `
+      @keyframes nxPop {
+        0% { transform: scale(0); opacity: 0; }
+        60% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes nxCheck {
+        to { stroke-dashoffset: 0; }
+      }
+    `;
+    document.head.appendChild(style);
   }
 }
 
