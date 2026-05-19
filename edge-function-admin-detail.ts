@@ -121,13 +121,6 @@ Deno.serve(async (req) => {
     // Strip raw token from response (don't echo back secrets)
     const safeSession = { ...session };
     delete safeSession.token;  // Don't include the URL token in admin payload
-    // Strip full_report's stripped base64 placeholders — keep useful structure
-    if (safeSession.full_report) {
-      const reportStr = JSON.stringify(safeSession.full_report);
-      if (reportStr.includes("[BASE64_IMAGE_STRIPPED]")) {
-        // Already stripped, fine
-      }
-    }
 
     return json({
       partner: { id: partner.id, name: partner.name, slug: partner.slug },

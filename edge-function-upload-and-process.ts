@@ -209,7 +209,12 @@ Critical guidance:
 - CRACKS: any visible line, fracture, or break in the glass surface — even a single hairline — must be reported as a crack (screen_crack or back_glass_crack), NOT as a scratch. If unsure between crack and scratch, classify as crack with medium confidence.
 - A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface, often originating from an impact point.
 - SCRATCHES are surface marks that don't penetrate the glass — they show no spider pattern or impact origin.
-- "phone_case_visible": Default to FALSE. Only set TRUE if you are highly confident a protective case is fitted — you can clearly see (a) a distinct case-vs-device material boundary on the back, OR (b) a raised case lip around the edges of the device, OR (c) a coloured/textured back that is obviously NOT the original device finish (Apple/Samsung etc. devices have characteristic glass/aluminium finishes). If you only see a hand, fingers, or palm wrapping around the device and cannot clearly identify case material, return FALSE. When uncertain, return FALSE.
+- "phone_case_visible": Default to FALSE. Only set TRUE if you are highly confident a protective case is fitted. Specific things that are NOT a case (return FALSE for these):
+  • A hand, fingers, or palm wrapping around the device — that's the user holding their phone, not a case.
+  • The phone's own back panel finish — modern iPhones (15 Pro / 16 Pro / 17 Pro) have titanium frames and matte/textured glass backs that can look distinct from the screen side. The Pro models have a large raised camera "plateau" or "island" that is part of the device, NOT a case.
+  • Samsung Galaxy S/Ultra models have similar camera bumps that are part of the device.
+  • A clear screen protector on the front.
+  Return TRUE only when you see ALL of: (a) a clear seam/border where case material ends and device begins, AND (b) case-specific features like raised port cutouts, button covers, or a noticeably different surface texture wrapping around the edges. When in real doubt, return FALSE — false-positives frustrate users with bare phones.
 - A clear screen protector on the FRONT is NOT a case. Only worry about cases on the back/edges.
 - "is_fold_phone_closed" = true only if it's a fold/flip phone (Z Fold, Z Flip, Razr etc.) in closed state.
 - For ${photoKind === "back" ? "BACK photos: this is the critical one for case detection. Look for material covering the device back that has a different colour, texture, or edge profile than the device body itself." : "SCREEN photos: examine front glass carefully for ANY crack lines, even small ones — they are the most common pre-existing damage."}
@@ -369,14 +374,15 @@ Deno.serve(async (req) => {
     if (new Date(session.expires_at) < new Date()) return json({ error: "Session expired" }, 401);
 
     // Rate limits
+    // Rate-limit by IP. If we can't see the client IP (proxy strips it), still apply a strict cap.
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-      || req.headers.get("x-real-ip") || "unknown";
-    if (ip !== "unknown") {
-      const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
-        p_ip: ip, p_per_minute_limit: 30,
-      });
-      if (ipOk === false) return json({ error: "Rate limit exceeded" }, 429);
-    }
+      || req.headers.get("x-real-ip");
+    const rlIp = ip || "0.0.0.0";
+    const rlLimit = ip ? 30 : 10; // stricter cap when origin IP is unknown
+    const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
+      p_ip: rlIp, p_per_minute_limit: rlLimit,
+    });
+    if (ipOk === false) return json({ error: "Rate limit exceeded" }, 429);
     const quotaKind = kind === "imei" ? "imei" : "photo";
     const { data: quotaOk } = await supabase.rpc("session_check_upload_quota", {
       p_token: sessionToken, p_kind: quotaKind,

@@ -2339,13 +2339,6 @@ async function completeStage1() {
     }));
   } catch (e) { /* localStorage not available */ }
 
-  // Log Stage 1 report
-  console.log('=== NEXACORE STAGE 1 REPORT ===');
-  console.log(JSON.stringify(report, (key, val) => {
-    if (key === 'screenshot' && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
-    if (key === 'data' && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
-    return val;
-  }, 2));
 
   // Persist Stage 1 completion to backend
   try {
@@ -2522,22 +2515,10 @@ async function handlePhoto(event) {
       if (result && result.rejected) {
         delete report.photos[slot];
 
-        // HARD FAIL — pre-existing damage is not retryable. Lock the entire Stage 2.
+        // HARD FAIL — pre-existing damage is not retryable. Replace the whole Stage 2 screen
+        // with a terminal "ineligible" view so there's no UI surface left to interact with.
         if (result.reason === 'pre_existing_damage') {
-          // Keep the preview so user sees what was rejected
-          badge.textContent = '🚫';
-          badge.style.background = 'var(--danger)';
-          // Lock both photo slots
-          ['screen', 'back'].forEach(s => {
-            const slotEl = document.getElementById(`photo-${s}`);
-            if (slotEl) {
-              slotEl.style.pointerEvents = 'none';
-              slotEl.style.opacity = '0.5';
-            }
-          });
-          // Disable Submit
-          document.getElementById('btnPhotoSubmit').disabled = true;
-          nxShowBanner(result.user_message || 'Device not eligible due to pre-existing damage.', 'error');
+          renderDeviceIneligible(result.user_message, result.analysis);
           return;
         }
 
@@ -2656,12 +2637,6 @@ async function submitStage2() {
   finalDeviceEl.appendChild(document.createElement('br'));
   finalDeviceEl.appendChild(document.createTextNode('Device Profile: ' + report.device.fingerprint));
 
-  // Log full report
-  console.log('=== NEXACORE FULL ASSESSMENT REPORT ===');
-  console.log(JSON.stringify(report, (key, val) => {
-    if ((key === 'screenshot' || key === 'data') && typeof val === 'string' && val.startsWith('data:image')) return '[BASE64_IMAGE]';
-    return val;
-  }, 2));
 
   // Persist Stage 2 completion to backend
   try {
@@ -2675,6 +2650,55 @@ async function submitStage2() {
   goToStep(7);
 }
 
+
+function renderDeviceIneligible(message, analysis) {
+  // Hide every screen, then build a fresh terminal "ineligible" view in screen-6
+  const target = document.getElementById('screen-6');
+  if (!target) return;
+  Array.from(target.children).forEach(c => { c.style.display = 'none'; });
+
+  // Build the damage summary if we have analysis details
+  let damageDetail = '';
+  if (analysis && analysis.damage && analysis.damage.length > 0) {
+    const items = analysis.damage
+      .filter(d => d.confidence !== 'low')
+      .map(d => `${d.type.replace(/_/g, ' ')} (${d.severity}) at ${d.location}`);
+    if (items.length > 0) {
+      damageDetail = `<div style="margin-top:16px; padding:12px 16px; background:#FEE2E2; border-radius:8px; font-size:12px; color:#991B1B; text-align:left;"><div style="font-weight:700; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; font-family:Montserrat,sans-serif;">Detected:</div>${items.map(i => '• ' + i.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))).join('<br>')}</div>`;
+    }
+  }
+
+  const safeMsg = (message || 'This device is not eligible for enrolment.').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const ineligible = document.createElement('div');
+  ineligible.id = 'ineligibleState';
+  ineligible.style.cssText = 'flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 24px; gap:8px;';
+  ineligible.innerHTML = `
+    <div style="width:96px; height:96px; border-radius:50%; background:#FEE2E2; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(239,68,68,0.25);">
+      <span style="font-size:48px; line-height:1;">⚠️</span>
+    </div>
+    <h2 style="font-family:Montserrat,sans-serif; font-size:22px; font-weight:800; color:var(--dark); margin-top:24px; letter-spacing:-0.5px;">Device Not Eligible</h2>
+    <p style="font-size:14px; color:var(--text-light); font-weight:500; line-height:1.6; max-width:340px;">${safeMsg}</p>
+    ${damageDetail}
+    <p style="font-size:12px; color:var(--text-light); margin-top:32px; font-weight:500; max-width:320px;">Your enrolment cannot continue. If you believe this is incorrect, contact your insurance provider with the reference below.</p>
+    <div style="margin-top:16px; padding:14px 22px; background:var(--ice); border-radius:10px; min-width:200px;">
+      <div style="font-family:Montserrat,sans-serif; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--deep-teal); margin-bottom:4px;">Reference</div>
+      <div style="font-family:Montserrat,sans-serif; font-size:18px; font-weight:800; color:var(--dark); letter-spacing:2px;">${report.id || ('NC-' + (NX.token || '').slice(0,6).toUpperCase())}</div>
+    </div>
+    <p style="font-size:12px; color:var(--text-light); margin-top:28px; font-weight:500;">You can now close this page.</p>
+  `;
+  target.appendChild(ineligible);
+
+  // Make absolutely sure no other UI can be reached
+  document.getElementById('btnPhotoSubmit')?.setAttribute('disabled', 'true');
+  ['screen', 'back'].forEach(s => {
+    const slotEl = document.getElementById(`photo-${s}`);
+    if (slotEl) slotEl.onclick = null;
+  });
+
+  // Dismiss any active banner (the terminal screen IS the message now)
+  if (typeof nxHideBanner === 'function') nxHideBanner();
+}
 
 function finishCheck() {
   const screen = document.getElementById('screen-7');
@@ -2764,6 +2788,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     nxShowBanner('This assessment is already complete.', 'info');
     renderStage1Results();
     goToStep(7);
+  } else if (NX.session.status === 'failed') {
+    // Session terminated (most likely from damage rejection). Show terminal screen, don't allow restart.
+    goToStep(6);
+    renderDeviceIneligible(
+      'This device was previously found ineligible for enrolment. The session has been closed.',
+      null
+    );
   }
 });
 
