@@ -32,7 +32,7 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
 
-const SIGNED_URL_EXPIRY_SECONDS = 3600;  // 1 hour
+const SIGNED_URL_EXPIRY_SECONDS = 900;  // 15 minutes — admin re-fetches on demand
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

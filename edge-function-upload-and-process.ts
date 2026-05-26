@@ -147,12 +147,37 @@ function luhnCheck(digits: string): boolean {
 }
 
 function extractImei(ocrText: string): { imei: string | null; valid: boolean } {
-  const candidates = ocrText.match(/(?:\d[\s.\-]?){15}/g) ?? [];
-  for (const c of candidates) {
+  // STRATEGY 1: Find runs of 15+ consecutive digits (most reliable for IMEI screens
+  // where the number is displayed unbroken). Slide a 15-window and try Luhn on each.
+  const digitRuns = ocrText.match(/\d{15,}/g) ?? [];
+  for (const run of digitRuns) {
+    for (let i = 0; i <= run.length - 15; i++) {
+      const candidate = run.substring(i, i + 15);
+      if (luhnCheck(candidate)) return { imei: candidate, valid: true };
+    }
+  }
+
+  // STRATEGY 2: 15 digits with single-char separators (some screens space groups out)
+  const sepCandidates = ocrText.match(/(?:\d[\s.\-]?){15}/g) ?? [];
+  for (const c of sepCandidates) {
     const digits = c.replace(/\D/g, "");
     if (digits.length === 15 && luhnCheck(digits)) return { imei: digits, valid: true };
   }
-  for (const c of candidates) {
+
+  // STRATEGY 3: Sliding 15-digit window over ALL digits in the OCR text. Catches
+  // edge cases where a label digit (e.g. "1" in "IMEI1") gets concatenated with the
+  // real IMEI. Always prefer a Luhn-valid window over a wrong one.
+  const allDigits = ocrText.replace(/\D/g, "");
+  for (let i = 0; i <= allDigits.length - 15; i++) {
+    const candidate = allDigits.substring(i, i + 15);
+    if (luhnCheck(candidate)) return { imei: candidate, valid: true };
+  }
+
+  // Fallback (no Luhn-valid found anywhere). Prefer a clean digit-run over a stitched one.
+  for (const run of digitRuns) {
+    if (run.length >= 15) return { imei: run.substring(0, 15), valid: false };
+  }
+  for (const c of sepCandidates) {
     const digits = c.replace(/\D/g, "");
     if (digits.length === 15) return { imei: digits, valid: false };
   }
@@ -205,18 +230,20 @@ Analyze this image and respond with ONLY valid JSON in this exact structure (no 
 }
 
 Critical guidance:
+- MIRROR IMAGE: This photo is a mirror reflection, so left and right are REVERSED. When reporting "location" in damage entries, describe the location from the user's perspective holding the device normally (NOT from how it appears in the photo). If damage appears on the RIGHT side of the device in the image, report it as the "LEFT" side (because the mirror has flipped it). Top and bottom are unchanged. Use "top-left corner", "bottom-right edge", etc., referring to the device's actual orientation, not the mirrored view.
 - This is for INSURANCE ENROLMENT. Missing pre-existing damage costs the insurer money. Prefer false-positive over false-negative for ANY damage detection.
 - CRACKS: any visible line, fracture, or break in the glass surface — even a single hairline — must be reported as a crack (screen_crack or back_glass_crack), NOT as a scratch. If unsure between crack and scratch, classify as crack with medium confidence.
 - A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface, often originating from an impact point.
 - SCRATCHES are surface marks that don't penetrate the glass — they show no spider pattern or impact origin.
 - "phone_case_visible": Default to FALSE. Only set TRUE if you are highly confident a protective case is fitted. Specific things that are NOT a case (return FALSE for these):
   • A hand, fingers, or palm wrapping around the device — that's the user holding their phone, not a case.
-  • The phone's own back panel finish — modern iPhones (15 Pro / 16 Pro / 17 Pro) have titanium frames and matte/textured glass backs that can look distinct from the screen side. The Pro models have a large raised camera "plateau" or "island" that is part of the device, NOT a case.
-  • Samsung Galaxy S/Ultra models have similar camera bumps that are part of the device.
+  • The phone's own back panel finish — modern iPhones (15 Pro / 16 Pro / 17 Pro) have titanium frames and matte/textured glass backs that can look distinct from the screen side.
+  • IMPORTANT — iPhone 17 Pro and 17 Pro Max back design: these models have a LARGE HORIZONTAL "camera plateau" that spans almost the FULL WIDTH of the device's upper back third. The plateau contains the three cameras + flash + LiDAR and is a DIFFERENT COLOUR / FINISH from the lower portion of the back panel by design (often satin/matte on the plateau vs. a different texture below). This two-tone back is the native iPhone 17 Pro design, NOT a case. Do not interpret the colour change between the upper plateau and lower back as a case seam.
+  • Earlier iPhone Pro models (15/16 Pro) and Samsung Galaxy S/Ultra models have smaller square or rectangular camera bumps that are also part of the device.
   • A clear screen protector on the front.
-  Return TRUE only when you see ALL of: (a) a clear seam/border where case material ends and device begins, AND (b) case-specific features like raised port cutouts, button covers, or a noticeably different surface texture wrapping around the edges. When in real doubt, return FALSE — false-positives frustrate users with bare phones.
+  Return TRUE only when you see ALL of: (a) a clear seam/border WRAPPING AROUND THE EDGES of the device where case material ends and device begins (a seam across only the back face is NOT enough — case seams wrap to the side rails), AND (b) case-specific features like raised port cutouts, button covers, or material that extends visibly over the device's corners and edges. When in real doubt, return FALSE — false-positives frustrate users with bare phones.
 - A clear screen protector on the FRONT is NOT a case. Only worry about cases on the back/edges.
-- "is_fold_phone_closed" = true only if it's a fold/flip phone (Z Fold, Z Flip, Razr etc.) in closed state.
+- "is_fold_phone_closed": Default to FALSE. This must ONLY be true when the device is clearly a fold/flip phone (Z Fold, Z Flip, Razr, Pixel Fold etc.) AND is in the closed/folded state. Signs of CLOSED: you can see two separate panels folded onto each other at an angle, OR you can see only a small external "cover" screen with the main device folded behind it, OR you can see the device folded in half like a clamshell. An OPEN fold phone shows a SINGLE large continuous screen (often with a faint horizontal or vertical crease line down the middle of the screen — this crease is NORMAL and means the device is OPEN, not closed). A visible crease alone is NOT evidence of being closed. If unsure, return FALSE.
 - For ${photoKind === "back" ? "BACK photos: this is the critical one for case detection. Look for material covering the device back that has a different colour, texture, or edge profile than the device body itself." : "SCREEN photos: examine front glass carefully for ANY crack lines, even small ones — they are the most common pre-existing damage."}
 - "condition_score": 10 = pristine, 7-9 = minor wear (scratches only), 4-6 = visible damage including any crack, 1-3 = heavily damaged.
 
@@ -311,7 +338,10 @@ function evaluatePhotoAnalysis(
       user_message: "Please remove your phone case and try again.",
     };
   }
-  if (analysis.is_fold_phone_closed) {
+  // Fold-closed check only on SCREEN photo. The back of an open fold phone has a
+  // visible hinge that the LLM frequently misreads as "folded" — but the screen
+  // photo has already verified the device is open by this point.
+  if (photoKind === "screen" && analysis.is_fold_phone_closed) {
     return {
       rejected: true,
       reason: "fold_phone_closed",
@@ -364,6 +394,12 @@ Deno.serve(async (req) => {
       return json({ error: "File too large (max 10MB)" }, 413);
     }
 
+    // Client metadata for audit log + rate limiting. IP may be null if the
+    // proxy strips x-forwarded-for; user_agent should always be present.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("x-real-ip");
+    const userAgent = req.headers.get("user-agent") || null;
+
     // Validate session
     const { data: session, error: sessionErr } = await supabase
       .from("sessions")
@@ -375,8 +411,6 @@ Deno.serve(async (req) => {
 
     // Rate limits
     // Rate-limit by IP. If we can't see the client IP (proxy strips it), still apply a strict cap.
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-      || req.headers.get("x-real-ip");
     const rlIp = ip || "0.0.0.0";
     const rlLimit = ip ? 30 : 10; // stricter cap when origin IP is unknown
     const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
@@ -446,6 +480,8 @@ Deno.serve(async (req) => {
         event_type: "imei_uploaded",
         actor_type: "customer",
         event_data: { size: file.size, path, ocr_valid: imeiValid },
+        ip_address: ip,
+        user_agent: userAgent,
       });
 
       return json({ success: true, path, imei: extractedImei, imei_valid: imeiValid });
@@ -474,6 +510,8 @@ Deno.serve(async (req) => {
         event_type: "photo_analysis_failed",
         actor_type: "system",
         event_data: { slot: kind, size: file.size, error: analysisError },
+        ip_address: ip,
+        user_agent: userAgent,
       });
       return json({
         rejected: true,
@@ -518,6 +556,8 @@ Deno.serve(async (req) => {
         event_type: "photo_rejected",
         actor_type: "system",
         event_data: { slot: kind, reason: verdict.reason, analysis },
+        ip_address: ip,
+        user_agent: userAgent,
       });
 
       return json({
@@ -544,6 +584,8 @@ Deno.serve(async (req) => {
       event_type: "photo_uploaded",
       actor_type: "customer",
       event_data: { slot: kind, size: file.size, path, analysis },
+      ip_address: ip,
+      user_agent: userAgent,
     });
 
     return json({ success: true, path, analysis });
