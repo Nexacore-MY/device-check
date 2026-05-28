@@ -147,35 +147,42 @@ function luhnCheck(digits: string): boolean {
 }
 
 function extractImei(ocrText: string): { imei: string | null; valid: boolean } {
-  // STRATEGY 1: Find runs of 15+ consecutive digits (most reliable for IMEI screens
-  // where the number is displayed unbroken). Slide a 15-window and try Luhn on each.
-  const digitRuns = ocrText.match(/\d{15,}/g) ?? [];
-  for (const run of digitRuns) {
-    for (let i = 0; i <= run.length - 15; i++) {
-      const candidate = run.substring(i, i + 15);
-      if (luhnCheck(candidate)) return { imei: candidate, valid: true };
-    }
+  // Split on non-digits so we can look at each whitespace-delimited digit group
+  // independently. The IMEI on every device's *#06# screen (and Apple's "Share
+  // Device Identifiers" screen) is exactly 15 digits flanked by whitespace.
+  const digitGroups = ocrText.split(/\D+/).filter(Boolean);
+
+  // STRATEGY A (preferred): exact-length-15 groups, Luhn-valid.
+  // This is the canonical IMEI shape. Done first so we never confuse the IMEI
+  // with a Luhn-valid 15-digit substring of a longer identifier (e.g. the 32-digit
+  // EID on iPhone share screens contains Luhn-valid 15-digit substrings).
+  for (const g of digitGroups) {
+    if (g.length === 15 && luhnCheck(g)) return { imei: g, valid: true };
   }
 
-  // STRATEGY 2: 15 digits with single-char separators (some screens space groups out)
+  // STRATEGY B: 15 digits with single-char separators (some screens space groups out).
   const sepCandidates = ocrText.match(/(?:\d[\s.\-]?){15}/g) ?? [];
   for (const c of sepCandidates) {
     const digits = c.replace(/\D/g, "");
     if (digits.length === 15 && luhnCheck(digits)) return { imei: digits, valid: true };
   }
 
-  // STRATEGY 3: Sliding 15-digit window over ALL digits in the OCR text. Catches
-  // edge cases where a label digit (e.g. "1" in "IMEI1") gets concatenated with the
-  // real IMEI. Always prefer a Luhn-valid window over a wrong one.
-  const allDigits = ocrText.replace(/\D/g, "");
-  for (let i = 0; i <= allDigits.length - 15; i++) {
-    const candidate = allDigits.substring(i, i + 15);
-    if (luhnCheck(candidate)) return { imei: candidate, valid: true };
+  // STRATEGY C: sliding 15-window inside slightly-longer runs (16-20 digits).
+  // Catches the stitched-label bug (e.g. "IMEI1357..." → label "1" merged with
+  // IMEI by OCR). Skip runs longer than 20 digits — those are clearly a
+  // different identifier (EID is 32, UPC is 12-14) and matches inside them
+  // are noise, not the IMEI.
+  for (const g of digitGroups) {
+    if (g.length <= 15 || g.length > 20) continue;
+    for (let i = 0; i <= g.length - 15; i++) {
+      const candidate = g.substring(i, i + 15);
+      if (luhnCheck(candidate)) return { imei: candidate, valid: true };
+    }
   }
 
-  // Fallback (no Luhn-valid found anywhere). Prefer a clean digit-run over a stitched one.
-  for (const run of digitRuns) {
-    if (run.length >= 15) return { imei: run.substring(0, 15), valid: false };
+  // Fallback (no Luhn-valid found anywhere). Prefer an exact-length-15 group.
+  for (const g of digitGroups) {
+    if (g.length === 15) return { imei: g, valid: false };
   }
   for (const c of sepCandidates) {
     const digits = c.replace(/\D/g, "");
