@@ -415,6 +415,12 @@ Deno.serve(async (req) => {
       .single();
     if (sessionErr || !session) return json({ error: "Session not found" }, 401);
     if (new Date(session.expires_at) < new Date()) return json({ error: "Session expired" }, 401);
+    // Terminal sessions (complete / failed) accept no more uploads. Without this
+    // a rejected-damage photo could still log against a completed session and
+    // confuse the audit log.
+    if (session.status === "complete" || session.status === "failed" || session.status === "expired") {
+      return json({ error: `Session is terminal (status=${session.status})` }, 409);
+    }
 
     // Rate limits
     // Rate-limit by IP. If we can't see the client IP (proxy strips it), still apply a strict cap.
