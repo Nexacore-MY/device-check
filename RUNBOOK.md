@@ -112,7 +112,7 @@ Test that secrets are set with `supabase secrets list`.
 | File | Use |
 |---|---|
 | `schema.sql` | Phase 1 baseline (tables, indexes, RLS enable) |
-| `schema-fix-01.sql` … `schema-fix-11.sql` | Migrations layered in order |
+| `schema-fix-01.sql` … `schema-fix-12.sql` | Migrations layered in order |
 
 `schema_migrations` table tracks applied versions (created in `schema-fix-02.sql`).
 
@@ -126,6 +126,15 @@ for f in schema-fix-*.sql; do psql "$DATABASE_URL" -f "$f"; done
 ⚠️ `schema-fix-08-diag.sql` is a temporary diagnostic — skip on a fresh setup. The consolidation work in `CLEANUP-AUDIT.md` §1.2 (a half-day task) collapses all this into one baseline file.
 
 **Schema browser:** Supabase Dashboard → Table Editor.
+
+### Applying a new migration to production
+
+1. Add `schema-fix-NN.sql` to the repo root with the next sequential number, headed by `insert into schema_migrations (version) values ('NN-short-name') on conflict do nothing;`
+2. Commit and push.
+3. Supabase Dashboard → SQL Editor → New query → paste the file contents → Run.
+4. Confirm by running `select * from schema_migrations order by applied_at desc limit 5;` — your new version should appear at the top.
+
+There is no automatic apply step. Production DB changes are still manual paste-and-run.
 
 ---
 
@@ -141,6 +150,8 @@ for f in schema-fix-*.sql; do psql "$DATABASE_URL" -f "$f"; done
 2. Commit so source of truth stays in git
 3. Redeploy to Supabase (dashboard paste or CLI)
 4. Run an end-to-end check on your phone to confirm
+
+**Important: source-of-truth drift risk.** Production runs the version pasted into the Supabase dashboard editor. The repo's `.ts` files are only the source-of-truth if every change is followed by a paste-and-deploy. If you change the `.ts`, commit it, but forget to paste into Supabase, production keeps running the old code and the repo lies. Always deploy and verify within the same work session.
 
 ### To change the schema
 1. Add `schema-fix-NN.sql` (next number in sequence)

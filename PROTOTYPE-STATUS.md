@@ -18,7 +18,7 @@ A web-based device condition assessment tool for used-phone protection plans. Pa
 | `edge-function-upload-and-process.ts` | `smart-handler` — upload + IMEI OCR + Gemini photo analysis + rejection rules |
 | `edge-function-admin-detail.ts` | `admin-detail` — fetches one session with signed photo URLs |
 | `schema.sql` | DB schema baseline (Phase 1 tables) |
-| `schema-fix-01.sql` … `schema-fix-11.sql` | Migrations layered on top of `schema.sql`, apply in order |
+| `schema-fix-01.sql` … `schema-fix-12.sql` | Migrations layered on top of `schema.sql`, apply in order. `schema-fix-12.sql` adds the server-side photo-presence check that prevents `session_complete_stage2` from accepting a `pass` result unless both photos exist. |
 | `nexacore-brand.md` | Brand colours and typography |
 | `.env` | Supabase URL + service role key (gitignored) |
 | `gcp-vision-key.json` | Google Cloud service account (gitignored) |
@@ -93,9 +93,15 @@ Admin (admin.html on GH Pages)
 - Admin-detail edge function (signed-URL fetching with 15-min expiry)
 - Admin dashboard (`admin.html`) with token gate, session list, filter/search/sort, click-through detail, webhook preview
 - Postgres schema (sessions, photos, diagnostics, webhook_deliveries, audit_log, partners)
-- Security: RLS lockdown, rate limits (per IP + per session), session token in URL fragment, terminal-fail on pre-existing damage, admin signed URLs short-lived
+- Security:
+  - RLS lockdown, rate limits (per IP + per session), session token in URL fragment
+  - Terminal-fail on pre-existing damage
+  - Admin signed URLs short-lived (15 min)
+  - **Server-side photo presence check on stage 2 completion** — `session_complete_stage2` refuses `pass` unless both `screen` and `back` photos exist (schema-fix-12). Closes a bug where the frontend guard could be bypassed and the session marked pass with only one photo accepted.
+  - **Smart-handler refuses uploads to terminal sessions** (status complete / failed / expired) — prevents stray rejection events on closed sessions.
 - Audit log records IP + user_agent on every event
 - Damage rejection rules tightened across iPhone 17 Pro, fold phones, mirror-flipped damage descriptions
+- IMEI extractor handles iPhone 17 "Share Device Identifiers" screen (32-digit EID + 15-digit IMEI without false-matching inside the EID)
 
 **Not yet built:**
 - **Internationalisation** (task #67) — schema is ready (`'en' | 'ms'`), backend returns language to client, but all UI strings are hardcoded English and LLM `user_message` returns are English-only. Day-one MVP requirement per project brief.
@@ -112,3 +118,5 @@ Admin (admin.html on GH Pages)
 - **Sensor test** — intermittent failures on iOS if browser was backgrounded.
 - **Storage check** — always passes (informational only).
 - **Device identification** — Android brand/model regex regressing on modern Chrome (see UA Reduction above).
+- **LLM damage detection is non-deterministic.** Observed in production (session `2a393ee5`): the same cracked screen was scored "no visible damage, condition 9" on the first attempt and correctly flagged with multiple cracks on a later attempt. Customers who stop after a false-negative would slip through with undetected damage. The case-on rule currently only fires on back photos — front-glass crack detection is harder when a case is visible. Mitigation candidates: also reject screen photos when a case is visible; tighten the prompt's hairline-crack threshold; add a second-opinion model pass for borderline scores.
+- **Stage 2 frontend submit-guard bypass** — observed once in production (session `1623df34`) — submit fired with only one photo accepted. Root cause on the frontend not yet identified; possible mobile-Safari quirk with the disabled attribute or a race. Backend now blocks this via schema-fix-12 regardless of frontend state.
