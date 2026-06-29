@@ -1384,7 +1384,8 @@ const NX = {
   session: null,
   partner: null,
   thresholds: null,
-  previewMode: false
+  previewMode: false,
+  captureMode: false
 };
 
 (function initNx() {
@@ -1394,6 +1395,9 @@ const NX = {
   const hashParams = new URLSearchParams(hash);
   const queryParams = new URLSearchParams(window.location.search);
   NX.token = hashParams.get('s') || queryParams.get('s');
+  // Second-phone QR hand-off arrives with &mode=capture — that device shoots the photos,
+  // so it must skip the single-device fingerprint match in startStage2.
+  NX.captureMode = (hashParams.get('mode') || queryParams.get('mode')) === 'capture';
   if (window.supabase && window.supabase.createClient) {
     NX.sb = window.supabase.createClient(NX.SUPABASE_URL, NX.SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -2471,8 +2475,11 @@ async function startStage2() {
   document.getElementById('verifyStatus').textContent = 'Comparing hardware signatures...';
   await delay(800);
 
-  if (currentHash === report.device.fingerprint) {
-    document.getElementById('verifyStatus').textContent = 'Device verified ✓';
+  if (NX.captureMode || currentHash === report.device.fingerprint) {
+    // Capture device (QR hand-off): the photos are deliberately taken on a SECOND phone,
+    // so the single-device fingerprint match doesn't apply (the production binding is the
+    // rolling-code + sweep, not this check). Skip the match in capture mode.
+    document.getElementById('verifyStatus').textContent = NX.captureMode ? 'Second device ready ✓' : 'Device verified ✓';
     await delay(600);
     goToStep(6);
   } else {
@@ -2843,7 +2850,7 @@ function nxRouteByStatus() {
 let nxHandoffTimer = null;
 function nxShowHandoff() {
   if (!NX.token) { nxShowBanner('Hand-off needs a live session link.', 'warning'); return; }
-  const url = `${location.origin}${location.pathname}#s=${encodeURIComponent(NX.token)}`;
+  const url = `${location.origin}${location.pathname}#s=${encodeURIComponent(NX.token)}&mode=capture`;
   const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
   document.getElementById('handoffQr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2 });
   document.getElementById('handoffPanel').style.display = 'block';
@@ -2856,8 +2863,14 @@ function nxShowHandoff() {
         if (s === 'complete' || s === 'failed' || s === 'expired') {
           clearInterval(nxHandoffTimer); nxHandoffTimer = null;
           NX.session = payload.session;
-          document.getElementById('handoffPanel').style.display = 'none';
-          nxRouteByStatus();
+          // Render the verdict on phone-1 directly — the full result screen is populated by
+          // submitStage2, which ran on the OTHER phone, so show a clear summary here instead.
+          const res = (payload.session.overall_result || payload.session.stage2_result || (s === 'failed' ? 'fail' : '')).toUpperCase();
+          const fail = res === 'FAIL' || s === 'failed' || s === 'expired';
+          document.getElementById('handoffPanel').innerHTML =
+            '<div style="font-weight:700;color:var(--deep-teal,#06444A);font-size:18px;margin-bottom:8px;">✓ Photos received — assessment complete</div>' +
+            '<div style="font-size:15px;font-weight:700;color:' + (fail ? '#991B1B' : '#06444A') + ';">Result: ' + (res || (fail ? 'FAIL' : 'DONE')) + '</div>' +
+            '<div style="font-size:12px;color:#999;margin-top:8px;">Completed on the second device.</div>';
         }
       }
     } catch (e) { console.error('hand-off poll error', e); }
