@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 7000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // raised 7->10s (prod 0763506)
         const ocrText = await visionTextDetection(fileBytes, controller.signal);
         clearTimeout(timeoutId);
         const result = extractImei(ocrText);
@@ -468,9 +468,20 @@ Deno.serve(async (req) => {
         console.error("OCR error:", ocrError);
       }
 
-      // HARD FAIL if no IMEI digits extracted
+      // No IMEI extracted. Split infra failure from a genuine no-read (prod G-27/G-28):
+      // an OCR timeout/outage must NOT burn the quota or count as an attempt.
       if (!extractedImei) {
         await supabase.storage.from(bucket).remove([path]).catch(() => {});
+        if (ocrError) {
+          // Infra failure: give the consumed slot back and label it non-counting.
+          await supabase.rpc("session_refund_upload_quota", { p_token: sessionToken, p_kind: "imei" });
+          return json({
+            rejected: true,
+            reason: "analysis_failed",
+            user_message: "We couldn't read your IMEI right now. Please try again in a moment.",
+            ocr_error: ocrError,
+          }, 422);
+        }
         return json({
           rejected: true,
           reason: "imei_not_readable",
@@ -505,7 +516,7 @@ Deno.serve(async (req) => {
     let analysisError: string | null = null;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 22000); // raised 12->22s to cover Gemini's 13-14s slow tail (prod 0763506)
       analysis = await analyzePhoto(fileBytes, kind as "screen" | "back", controller.signal);
       clearTimeout(timeoutId);
     } catch (e) {
@@ -526,6 +537,8 @@ Deno.serve(async (req) => {
         ip_address: ip,
         user_agent: userAgent,
       });
+      // Infra failure ate a quota slot upstream — refund it so timeouts don't lock the session.
+      await supabase.rpc("session_refund_upload_quota", { p_token: sessionToken, p_kind: "photo" });
       return json({
         rejected: true,
         reason: "analysis_failed",
