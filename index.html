@@ -1190,6 +1190,15 @@
       <button class="btn btn-secondary" onclick="finishStage1()">Complete Later</button>
       <button class="btn btn-primary" onclick="startStage2()">Take Photos Now</button>
     </div>
+    <div style="text-align:center; margin-top:12px;">
+      <button type="button" onclick="nxShowHandoff()" style="background:none; border:none; color:#44C0C5; font-weight:600; text-decoration:underline; cursor:pointer; font-family:inherit; font-size:14px;">Continue on another phone</button>
+    </div>
+    <div id="handoffPanel" style="display:none; margin-top:16px; text-align:center; padding:20px; border:1px solid #e5e7eb; border-radius:12px;">
+      <div style="font-weight:700; color:var(--deep-teal, #06444A); margin-bottom:12px;">Continue on another phone</div>
+      <div id="handoffQr" style="display:flex; justify-content:center; margin-bottom:12px;"></div>
+      <div style="font-size:13px; color:#555; margin-bottom:8px;">Scan this with your second phone's camera, then photograph this device front and back in a mirror.</div>
+      <div style="font-size:12px; color:#999;">Waiting for the other phone to finish…</div>
+    </div>
   </div>
 
   <!-- SCREEN 4: STAGE 2 - DEVICE RE-VERIFICATION -->
@@ -1364,6 +1373,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 // ===================== BACKEND CONFIG =====================
 const NX = {
@@ -1586,7 +1596,13 @@ async function nxUploadViaFunction(kind, blob) {
 
   if (!resp.ok) {
     let errMsg = `HTTP ${resp.status}`;
-    try { const body = await resp.json(); errMsg = body.error || errMsg; } catch {}
+    let errBody = {};
+    try { errBody = await resp.json(); errMsg = errBody.error || errMsg; } catch {}
+    // A transient per-IP/session rate-limit is recoverable — don't treat it as a terminal
+    // "start a new session" failure; surface it as a soft, non-counting retry.
+    if (resp.status === 429 && errBody.error === 'Rate limit exceeded') {
+      return { rejected: true, reason: 'rate_limited', user_message: 'Server is busy — please wait a moment and try again.' };
+    }
     nxShowBanner(`Upload failed: ${errMsg}`, 'error');
     throw new Error(errMsg);
   }
@@ -2244,7 +2260,7 @@ async function handleIMEIScreenshot(event) {
       const result = await nxUploadViaFunction('imei', blob);
       if (result && result.rejected) {
         // Don't count infrastructure failures against the retry limit
-        if (result.reason !== 'analysis_failed') NX.uploadAttempts.imei++;
+        if (result.reason !== 'analysis_failed' && result.reason !== 'rate_limited') NX.uploadAttempts.imei++;
         // OCR didn't find an IMEI
         if (NX.uploadAttempts.imei >= NX.MAX_ATTEMPTS) {
           statusLine.style.background = '#FEE2E2';
@@ -2548,7 +2564,7 @@ async function handlePhoto(event) {
         if (previewImg) previewImg.remove();
 
         // Don't count infrastructure failures (timeouts, API errors) against the user's retry limit
-        const isInfraFailure = result.reason === 'analysis_failed';
+        const isInfraFailure = result.reason === 'analysis_failed' || result.reason === 'rate_limited';
         if (!isInfraFailure) NX.uploadAttempts[slot]++;
 
         if (NX.uploadAttempts[slot] >= NX.MAX_ATTEMPTS) {
@@ -2791,19 +2807,9 @@ function setTag(id, status) {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===================== PAGE LOAD INIT =====================
-window.addEventListener('DOMContentLoaded', async () => {
-  if (NX.previewMode) {
-    nxShowBanner('Preview mode — no session, results will not be saved', 'warning');
-    return;
-  }
-
-  const data = await nxLoadSession();
-  if (!data) return; // error already shown
-
-  // Use partner language as default for the session
-  document.documentElement.lang = NX.session.language || 'en';
-
-  // Resume logic — if Stage 1 already complete, rehydrate state from full_report
+// Route to the right screen for the persisted session status. Shared by the initial
+// load and the QR hand-off poll (so phone-1 lands on the result when phone-2 finishes).
+function nxRouteByStatus() {
   if (NX.session.status === 'stage1_complete' || NX.session.status === 'stage2_in_progress') {
     nxRehydrateReport();
     const passed = report.stage1Result === 'pass';
@@ -2828,6 +2834,50 @@ window.addEventListener('DOMContentLoaded', async () => {
       null
     );
   }
+}
+
+// QR second-phone hand-off: phone-1 shows a QR of its own session link; a second phone
+// scans it, resumes the SAME session at Stage 2, and uploads. Phone-1 polls for the verdict
+// and routes itself to the result when the other phone finishes. Happy-path demo UX only —
+// no fraud-binding (that is the production phase).
+let nxHandoffTimer = null;
+function nxShowHandoff() {
+  if (!NX.token) { nxShowBanner('Hand-off needs a live session link.', 'warning'); return; }
+  const url = `${location.origin}${location.pathname}#s=${encodeURIComponent(NX.token)}`;
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  document.getElementById('handoffQr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2 });
+  document.getElementById('handoffPanel').style.display = 'block';
+  if (nxHandoffTimer) return;
+  nxHandoffTimer = setInterval(async () => {
+    try {
+      const payload = await nxCall('session_get', { p_token: NX.token });
+      if (payload && payload.session) {
+        const s = payload.session.status;
+        if (s === 'complete' || s === 'failed' || s === 'expired') {
+          clearInterval(nxHandoffTimer); nxHandoffTimer = null;
+          NX.session = payload.session;
+          document.getElementById('handoffPanel').style.display = 'none';
+          nxRouteByStatus();
+        }
+      }
+    } catch (e) { console.error('hand-off poll error', e); }
+  }, 3000);
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (NX.previewMode) {
+    nxShowBanner('Preview mode — no session, results will not be saved', 'warning');
+    return;
+  }
+
+  const data = await nxLoadSession();
+  if (!data) return; // error already shown
+
+  // Use partner language as default for the session
+  document.documentElement.lang = NX.session.language || 'en';
+
+  // Resume logic — route by the persisted session status (shared with the hand-off poll).
+  nxRouteByStatus();
 });
 
 function nxRehydrateReport() {
