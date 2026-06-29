@@ -423,11 +423,12 @@ Deno.serve(async (req) => {
     }
 
     // Rate limits
-    // Rate-limit by IP. If we can't see the client IP (proxy strips it), still apply a strict cap.
-    const rlIp = ip || "0.0.0.0";
-    const rlLimit = ip ? 30 : 10; // stricter cap when origin IP is unknown
+    // Rate-limit by IP when visible, else per-session (so a tunnel/shared-IP demo isn't
+    // throttled under one global "0.0.0.0" bucket). Demo-tuned caps; revisit for prod.
+    const rlKey = ip ? ip : `sess:${sessionToken}`;
+    const rlLimit = ip ? 60 : 30;
     const { data: ipOk } = await supabase.rpc("rl_check_and_increment", {
-      p_ip: rlIp, p_per_minute_limit: rlLimit,
+      p_key: rlKey, p_per_minute_limit: rlLimit,
     });
     if (ipOk === false) return json({ error: "Rate limit exceeded" }, 429);
     const quotaKind = kind === "imei" ? "imei" : "photo";
