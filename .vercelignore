@@ -1,0 +1,16 @@
+# Vercel deploy = the customer app only. Keep local secrets, backend source, and
+# internal docs OUT of the upload (critical: the local .env / GCP key / admin token
+# are gitignored but a Vercel CLI deploy uploads the working dir, so exclude them here).
+.env
+.env.*
+gcp-vision-key.json
+*.key.json
+admin-config.js
+admin.html
+edge-function-admin-detail.ts
+edge-function-upload-and-process.ts
+*.sql
+*.md
+docs/
+.github/
+.claude/
