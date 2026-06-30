@@ -2463,6 +2463,9 @@ function finishStage1() {
 // ===================== STAGE 2 =====================
 async function startStage2() {
   document.getElementById('stage2Ref').textContent = report.id;
+  // Second phone (QR hand-off): no enrolled-device fingerprint to verify — it photographs the
+  // OTHER phone. Re-skin the capture screen for that and go straight in (skip the verify step).
+  if (NX.captureMode) { nxApplyCaptureCopy(); goToStep(6); return; }
   goToStep(5);
 
   // Re-verify device fingerprint
@@ -2504,8 +2507,9 @@ async function startStage2() {
 function capturePhoto(slot) {
   currentPhotoSlot = slot;
   const input = document.getElementById('photoInput');
-  // Screen photo = front camera (user), Back photo = back camera (environment)
-  input.setAttribute('capture', slot === 'back' ? 'environment' : 'user');
+  // Screen photo = front camera (user), Back photo = back camera (environment).
+  // In capture mode the SECOND phone photographs the OTHER device — use the rear camera for both.
+  input.setAttribute('capture', (NX.captureMode || slot === 'back') ? 'environment' : 'user');
   input.click();
 }
 
@@ -2816,9 +2820,34 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ===================== PAGE LOAD INIT =====================
 // Route to the right screen for the persisted session status. Shared by the initial
 // load and the QR hand-off poll (so phone-1 lands on the result when phone-2 finishes).
+// Re-skin the Stage-2 capture screen for the SECOND phone in a QR hand-off: it photographs the
+// OTHER phone directly (no mirror), so swap the mirror-selfie copy for "photograph the other
+// phone." The rear camera for both shots is handled in capturePhoto via NX.captureMode.
+function nxApplyCaptureCopy() {
+  const s = document.getElementById('screen-6');
+  if (!s || s.dataset.captureCopy === '1') return; // idempotent
+  s.dataset.captureCopy = '1';
+  const set = (sel, txt) => { const el = s.querySelector(sel); if (el) el.textContent = txt; };
+  set('.section-title', 'Photograph the Other Phone');
+  set('.section-desc', "You're the second device — point your camera at the other phone and capture its front and back.");
+  set('.photo-section-label', 'Required — Photos of the other phone');
+  set('#photo-screen .photo-slot-label', 'Front');
+  const guide = s.querySelector('.mirror-guide');
+  if (guide) guide.innerHTML =
+    '<div class="mirror-guide-title">How to take the photos</div>' +
+    '<div class="mirror-step"><span class="mirror-step-icon">📱</span><span><strong>Front:</strong> Point your camera at the front (screen) of the other phone. Fill the frame and keep it sharp.</span></div>' +
+    '<div class="mirror-step"><span class="mirror-step-icon">🔄</span><span><strong>Back:</strong> Turn the other phone over and capture its back.</span></div>' +
+    '<div class="mirror-step"><span class="mirror-step-icon">💡</span><span>Good lighting, no glare. Make sure the whole device — edges and corners — is visible.</span></div>';
+  const warn = s.querySelector('.card .card-desc');
+  if (warn) warn.textContent = 'Hold the other phone steady and fill the frame. Capture the front (screen) first, then the back.';
+}
+
 function nxRouteByStatus() {
   if (NX.session.status === 'stage1_complete' || NX.session.status === 'stage2_in_progress') {
     nxRehydrateReport();
+    // Second phone (QR hand-off): skip the enrolment summary and go straight to capturing the
+    // OTHER phone — it's a helper device, not the enrolled one.
+    if (NX.captureMode) { startStage2(); return; }
     const passed = report.stage1Result === 'pass';
     nxShowBanner(
       passed
