@@ -1580,6 +1580,7 @@ async function nxUploadViaFunction(kind, blob) {
   formData.append('session_token', NX.token);
   formData.append('kind', kind);
   formData.append('file', blob, `${kind}.jpg`);
+  formData.append('capture_mode', NX.captureMode ? '1' : '0');   // direct (2nd-phone) vs mirror selfie
 
   const url = `${NX.SUPABASE_URL}/functions/v1/smart-handler`;
   // Don't let a stalled connection hang forever on "Uploading…": abort after 30s so the
@@ -2275,6 +2276,13 @@ async function handleIMEIScreenshot(event) {
     // Upload synchronously — Continue button stays disabled until OCR result is in memory
     try {
       const result = await nxUploadViaFunction('imei', blob);
+      if (result && result.skipped) {
+        // No live session (preview / no token) — say so instead of silently stalling on the spinner.
+        statusLine.style.background = '#FEF3C7';
+        statusLine.style.color = 'var(--warning)';
+        statusLine.textContent = 'Preview mode — no live session. Open your enrolment link (with the session code) to submit the IMEI.';
+        return;
+      }
       if (result && result.rejected) {
         // Don't count infrastructure failures against the retry limit
         if (result.reason !== 'analysis_failed' && result.reason !== 'rate_limited') NX.uploadAttempts.imei++;
@@ -2623,6 +2631,8 @@ async function handlePhoto(event) {
     // Now check if both required photos are uploaded
     const hasRequired = report.photos.screen && report.photos.back;
     document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
+    // Second phone has no manual Submit step — auto-finalise so it can't strand at stage1_complete.
+    if (NX.captureMode && hasRequired) submitStage2();
   } catch (e) {
     console.error('Photo processing failed:', e);
   }
@@ -2661,7 +2671,13 @@ async function submitStage2() {
     const photosOk = report.photos.screen && report.photos.back;
     const hasIMEI = report.imei && report.imei.screenshot;
 
-    const overallPass = !criticalFail && nonCriticalFails === 0 && hasIMEI && photosOk;
+    // Phone-2 (capture mode) holds no Stage-1 data — IMEI + diagnostics ran on phone-1. The
+    // verdict is server-validated: session_complete_stage2 (schema-fix-12) only allows 'pass'
+    // when BOTH photos are accepted, and the edge fn already fails terminally on damage. So a
+    // capture session that reached here with both photos accepted = pass.
+    const overallPass = NX.captureMode
+      ? !!(report.photos.screen && report.photos.back)
+      : (!criticalFail && nonCriticalFails === 0 && hasIMEI && photosOk);
     report.result = overallPass ? 'pass' : 'fail';
     report.finalResult = report.result;
 
@@ -2919,8 +2935,26 @@ function nxShowHandoff() {
   }, 3000);
 }
 
+// A no-session warning in the bottom banner (nxShowBanner) is hidden behind iOS Safari's URL
+// toolbar, so it went unseen — a tokenless link then ran silently in preview mode and uploads
+// no-op, which looks like a frozen screen. This shows a fixed TOP strip that iPhone can't hide.
+function nxShowTopNotice(msg) {
+  let n = document.getElementById('nxTopNotice');
+  if (!n) {
+    n = document.createElement('div');
+    n.id = 'nxTopNotice';
+    n.setAttribute('role', 'status');
+    n.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#FEF3C7;'
+      + 'color:#92400E;border-bottom:2px solid #F59E0B;font:600 13px/1.4 Quicksand,system-ui,sans-serif;'
+      + 'text-align:center;padding:9px 12px;';
+    document.body.appendChild(n);
+  }
+  n.textContent = msg;
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
   if (NX.previewMode) {
+    nxShowTopNotice('⚠ Preview mode — this link has no session code. Open your enrolment link (it contains #s=…) to submit. Nothing here will be saved.');
     nxShowBanner('Preview mode — no session, results will not be saved', 'warning');
     return;
   }

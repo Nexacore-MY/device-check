@@ -211,9 +211,18 @@ type PhotoAnalysis = {
   summary: string;
 };
 
-const PHOTO_ANALYSIS_PROMPT = (photoKind: "screen" | "back") => `You are analyzing a photo submitted for a mobile phone insurance enrolment (Accidental Damage Protection). The customer was asked to photograph their phone in a mirror.
+const PHOTO_ANALYSIS_PROMPT = (photoKind: "screen" | "back", isDirect: boolean) => {
+  const framing = isDirect
+    ? `You are analyzing a photo submitted for a mobile phone insurance enrolment (Accidental Damage Protection). A second person photographed the customer's phone DIRECTLY with another camera — this is NOT a mirror reflection.
 
-Photo type: ${photoKind === "screen" ? "screen-side (front of device facing mirror)" : "back-side (back of device facing mirror)"}
+Photo type: ${photoKind === "screen" ? "screen-side (front of the device)" : "back-side (back of the device)"}`
+    : `You are analyzing a photo submitted for a mobile phone insurance enrolment (Accidental Damage Protection). The customer was asked to photograph their phone in a mirror.
+
+Photo type: ${photoKind === "screen" ? "screen-side (front of device facing mirror)" : "back-side (back of device facing mirror)"}`;
+  const locationGuidance = isDirect
+    ? `- DIRECT PHOTO: This is a direct photo (NOT a mirror), so left and right are NOT reversed. Report each damage "location" exactly as you see it, from the user's perspective holding the device normally. Top and bottom are unchanged.`
+    : `- MIRROR IMAGE: This photo is a mirror reflection, so left and right are REVERSED. When reporting "location" in damage entries, describe the location from the user's perspective holding the device normally (NOT from how it appears in the photo). If damage appears on the RIGHT side of the device in the image, report it as the "LEFT" side (because the mirror has flipped it). Top and bottom are unchanged. Use "top-left corner", "bottom-right edge", etc., referring to the device's actual orientation, not the mirrored view.`;
+  return `${framing}
 
 Analyze this image and respond with ONLY valid JSON in this exact structure (no markdown, no preamble, no commentary):
 
@@ -237,10 +246,11 @@ Analyze this image and respond with ONLY valid JSON in this exact structure (no 
 }
 
 Critical guidance:
-- MIRROR IMAGE: This photo is a mirror reflection, so left and right are REVERSED. When reporting "location" in damage entries, describe the location from the user's perspective holding the device normally (NOT from how it appears in the photo). If damage appears on the RIGHT side of the device in the image, report it as the "LEFT" side (because the mirror has flipped it). Top and bottom are unchanged. Use "top-left corner", "bottom-right edge", etc., referring to the device's actual orientation, not the mirrored view.
+${locationGuidance}
 - This is for INSURANCE ENROLMENT. Missing pre-existing damage costs the insurer money. Prefer false-positive over false-negative for ANY damage detection.
 - CRACKS: any visible line, fracture, or break in the glass surface — even a single hairline — must be reported as a crack (screen_crack or back_glass_crack), NOT as a scratch. If unsure between crack and scratch, classify as crack with medium confidence.
 - A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface, often originating from an impact point.
+- The screen may be DISPLAYING a wallpaper, photo, or app — content WITHIN the displayed image (lines, edges, tree branches, text) and reflections/glare on the glass are NOT cracks. A real crack is a fracture IN the glass with an impact origin, independent of what is on screen.
 - SCRATCHES are surface marks that don't penetrate the glass — they show no spider pattern or impact origin.
 - "phone_case_visible": Default to FALSE. Only set TRUE if you are highly confident a protective case is fitted. Specific things that are NOT a case (return FALSE for these):
   • A hand, fingers, or palm wrapping around the device — that's the user holding their phone, not a case.
@@ -255,11 +265,13 @@ Critical guidance:
 - "condition_score": 10 = pristine, 7-9 = minor wear (scratches only), 4-6 = visible damage including any crack, 1-3 = heavily damaged.
 
 Output only the JSON.`;
+};
 
 async function analyzePhotoGemini(
   imageBytes: Uint8Array,
   photoKind: "screen" | "back",
-  signal: AbortSignal
+  signal: AbortSignal,
+  isDirect: boolean
 ): Promise<PhotoAnalysis> {
   const creds = JSON.parse(GCP_CREDENTIALS);
   const token = await getGcpAccessToken();
@@ -281,7 +293,7 @@ async function analyzePhotoGemini(
         role: "user",
         parts: [
           { inline_data: { mime_type: "image/jpeg", data: b64 } },
-          { text: PHOTO_ANALYSIS_PROMPT(photoKind) },
+          { text: PHOTO_ANALYSIS_PROMPT(photoKind, isDirect) },
         ],
       }],
       generationConfig: {
@@ -304,10 +316,11 @@ async function analyzePhotoGemini(
 async function analyzePhoto(
   imageBytes: Uint8Array,
   photoKind: "screen" | "back",
-  signal: AbortSignal
+  signal: AbortSignal,
+  isDirect: boolean
 ): Promise<PhotoAnalysis> {
   if (VISION_PROVIDER === "gemini") {
-    return analyzePhotoGemini(imageBytes, photoKind, signal);
+    return analyzePhotoGemini(imageBytes, photoKind, signal, isDirect);
   }
   throw new Error(`Provider ${VISION_PROVIDER} not implemented`);
 }
@@ -315,9 +328,10 @@ async function analyzePhoto(
 // Apply rejection rules — returns null if accepted, error string if rejected
 function evaluatePhotoAnalysis(
   analysis: PhotoAnalysis,
-  photoKind: "screen" | "back"
+  photoKind: "screen" | "back",
+  isDirect: boolean
 ): { rejected: boolean; reason?: string; user_message?: string } {
-  if (!analysis.is_phone_in_mirror) {
+  if (!isDirect && !analysis.is_phone_in_mirror) {
     return {
       rejected: true,
       reason: "not_phone_in_mirror",
@@ -338,7 +352,13 @@ function evaluatePhotoAnalysis(
       user_message: "Make sure your whole phone is visible in the mirror, not covered by your fingers or anything else.",
     };
   }
-  if (photoKind === "back" && analysis.phone_case_visible) {
+  // Case-on check runs on BOTH photos. Previously back-only: a case visible on the SCREEN
+  // photo was ignored and fell through to the damage check below, where the LLM misreads the
+  // clear-case edges/reflections as "cracks" → a terminal false "not eligible" on a clean
+  // phone. Catching the case here (before the damage check) turns that into the friendly,
+  // retryable "remove your case" prompt instead. (Confirmed on session ccd8f5…:
+  // phone_case_visible=true but it failed as pre_existing_damage.)
+  if (analysis.phone_case_visible) {
     return {
       rejected: true,
       reason: "phone_case_on",
@@ -390,6 +410,7 @@ Deno.serve(async (req) => {
     const sessionToken = String(form.get("session_token") ?? "");
     const kind = String(form.get("kind") ?? "");
     const file = form.get("file") as File | null;
+    const captureMode = String(form.get("capture_mode") ?? "") === "1";  // direct (2nd-phone) vs mirror selfie
 
     if (!sessionToken || !kind || !file) {
       return json({ error: "Missing session_token, kind, or file" }, 400);
@@ -518,7 +539,7 @@ Deno.serve(async (req) => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 22000); // raised 12->22s to cover Gemini's 13-14s slow tail (prod 0763506)
-      analysis = await analyzePhoto(fileBytes, kind as "screen" | "back", controller.signal);
+      analysis = await analyzePhoto(fileBytes, kind as "screen" | "back", controller.signal, captureMode);
       clearTimeout(timeoutId);
     } catch (e) {
       analysisError = e instanceof Error ? e.message : "Analysis failed";
@@ -549,7 +570,7 @@ Deno.serve(async (req) => {
     }
 
     // Apply rejection rules
-    const verdict = evaluatePhotoAnalysis(analysis, kind as "screen" | "back");
+    const verdict = evaluatePhotoAnalysis(analysis, kind as "screen" | "back", captureMode);
     if (verdict.rejected) {
       if (verdict.reason === "pre_existing_damage") {
         // KEEP the photo as evidence — partner needs to review it.
