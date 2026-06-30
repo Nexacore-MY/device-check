@@ -1582,14 +1582,27 @@ async function nxUploadViaFunction(kind, blob) {
   formData.append('file', blob, `${kind}.jpg`);
 
   const url = `${NX.SUPABASE_URL}/functions/v1/smart-handler`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'apikey': NX.SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${NX.SUPABASE_ANON_KEY}`,
-    },
-    body: formData,
-  });
+  // Don't let a stalled connection hang forever on "Uploading…": abort after 30s so the
+  // caller's catch surfaces "Upload failed — tap to try again" and the user can retry.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': NX.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${NX.SUPABASE_ANON_KEY}`,
+      },
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('Upload timed out — please try again');
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   // 422 = soft rejection (bad photo / no IMEI). Body has user_message.
   if (resp.status === 422) {
