@@ -974,7 +974,7 @@
           <div class="welcome-step-num">3</div>
           <div>
             <div class="welcome-step-text">Condition Photos</div>
-            <div class="welcome-step-sub">Mirror photos of your device (can complete later)</div>
+            <div class="welcome-step-sub">Photograph your device with a second phone (or later)</div>
           </div>
         </div>
       </div>
@@ -1007,8 +1007,8 @@
       <div class="prep-item" onclick="togglePrep(this)">
         <div class="prep-check"><div class="prep-checkbox"></div></div>
         <div>
-          <div class="prep-title">Have a mirror nearby</div>
-          <div class="prep-sub">You'll need it to photograph your device</div>
+          <div class="prep-title">Have a second phone handy (optional)</div>
+          <div class="prep-sub">You can photograph this device with it — or finish this step later</div>
         </div>
       </div>
       <div class="prep-item" onclick="togglePrep(this)">
@@ -1161,7 +1161,7 @@
       </div>
       <div class="result-row">
         <div class="result-row-left">
-          <span class="result-row-icon">🪞</span>
+          <span class="result-row-icon">📷</span>
           <span class="result-row-label">Condition Photos</span>
         </div>
         <span class="result-tag pending" id="res-photos">PENDING</span>
@@ -1180,23 +1180,20 @@
     </div>
 
     <div class="card" style="margin-top:8px; background: #FEF3C7; border-color: var(--warning);">
-      <div class="card-title" style="margin-bottom:4px; color: #92400E;">Condition photos required</div>
+      <div class="card-title" style="margin-bottom:4px; color: #92400E;">One step left — condition photos</div>
       <div class="card-desc" style="margin-bottom:0; color: #92400E;">
-        To complete your assessment, you'll need to take mirror photos of your device. You have <strong>72 hours</strong> to complete this step. Your policy will remain in pending status until photos are submitted.
+        Photograph this device with a second phone to finish now, or come back later — your progress is saved for <strong>72 hours</strong>. Just reopen this same link on any phone to pick up where you left off. Your policy stays pending until the photos are submitted.
       </div>
     </div>
 
     <div class="btn-group">
-      <button class="btn btn-secondary" onclick="finishStage1()">Complete Later</button>
-      <button class="btn btn-primary" onclick="startStage2()">Take Photos Now</button>
-    </div>
-    <div style="text-align:center; margin-top:12px;">
-      <button type="button" onclick="nxShowHandoff()" style="background:none; border:none; color:#44C0C5; font-weight:600; text-decoration:underline; cursor:pointer; font-family:inherit; font-size:14px;">Continue on another phone</button>
+      <button class="btn btn-secondary" onclick="finishStage1()">Complete later</button>
+      <button class="btn btn-primary" onclick="nxShowHandoff()">Continue on another phone</button>
     </div>
     <div id="handoffPanel" style="display:none; margin-top:16px; text-align:center; padding:20px; border:1px solid #e5e7eb; border-radius:12px;">
       <div style="font-weight:700; color:var(--deep-teal, #06444A); margin-bottom:12px;">Continue on another phone</div>
       <div id="handoffQr" style="display:flex; justify-content:center; margin-bottom:12px;"></div>
-      <div style="font-size:13px; color:#555; margin-bottom:8px;">Scan this with your second phone's camera, then photograph this device front and back in a mirror.</div>
+      <div style="font-size:13px; color:#555; margin-bottom:8px;">Scan this with your second phone's camera, then use that phone to photograph this device — front and back.</div>
       <div style="font-size:12px; color:#999;">Waiting for the other phone to finish…</div>
     </div>
   </div>
@@ -1210,10 +1207,10 @@
     </div>
   </div>
 
-  <!-- SCREEN 5: STAGE 2 - MIRROR PHOTOS -->
+  <!-- SCREEN 5: STAGE 2 - CONDITION PHOTOS (2nd-phone direct capture; re-skinned by nxApplyCaptureCopy) -->
   <div class="screen" id="screen-6">
     <h2 class="section-title">Condition Photos</h2>
-    <p class="section-desc">Take mirror photos to document your device's physical condition.</p>
+    <p class="section-desc">Photograph the device to document its physical condition.</p>
 
     <div class="stage-banner">
       <div class="stage-banner-title">Stage 2 — Photo Evidence</div>
@@ -1222,34 +1219,22 @@
     </div>
 
     <div class="mirror-guide">
-      <div class="mirror-guide-title">How to take mirror photos</div>
-      <div class="mirror-step">
-        <span class="mirror-step-icon">🪞</span>
-        <span>Stand in front of a mirror</span>
-      </div>
+      <div class="mirror-guide-title">How to take the photos</div>
       <div class="mirror-step">
         <span class="mirror-step-icon">📱</span>
-        <span><strong>Screen photo:</strong> Hold your phone facing the mirror. Your front camera will capture the screen and front of the device in the reflection.</span>
+        <span><strong>Screen photo:</strong> Point the camera at the front (screen) of the device. Fill the frame and keep it sharp.</span>
       </div>
       <div class="mirror-step">
         <span class="mirror-step-icon">🔄</span>
-        <span><strong>Back photo:</strong> Turn your phone around so the back faces the mirror. Your back camera will capture the back of the device in the reflection.</span>
-      </div>
-      <div class="mirror-step">
-        <span class="mirror-step-icon">📏</span>
-        <span><strong>Get as close to the mirror as possible</strong> — almost touching it. This is the most important step for accurate damage detection.</span>
+        <span><strong>Back photo:</strong> Turn the device over and capture its back.</span>
       </div>
       <div class="mirror-step">
         <span class="mirror-step-icon">💡</span>
-        <span>Use good lighting but avoid direct glare on the screen. Make sure the full device is visible, including edges and corners.</span>
-      </div>
-      <div class="mirror-step">
-        <span class="mirror-step-icon">🔁</span>
-        <span><strong>Fold phones / Samsung devices:</strong> If the wrong camera opens, use the flip-camera button in your camera app to switch. Open the device fully before taking the screen photo.</span>
+        <span>Use good lighting and avoid glare. Make sure the full device is visible, including edges and corners.</span>
       </div>
     </div>
 
-    <div class="photo-section-label">Required — Mirror Photos</div>
+    <div class="photo-section-label">Required — Condition Photos</div>
     <div class="photo-grid">
       <div class="photo-slot" id="photo-screen" onclick="capturePhoto('screen')">
         <svg class="photo-slot-icon" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1278,7 +1263,7 @@
 
     <div class="card" style="margin-top:12px">
       <div class="card-desc" style="margin-bottom:0; font-size:12px;">
-        Photos must be taken with this device to verify they match the enrolled device. Photos from other devices will be rejected.
+        Capture the front (screen) first, then the back. Make sure the whole device fills the frame, edges included.
       </div>
     </div>
 
@@ -1348,7 +1333,7 @@
       </div>
       <div class="result-row">
         <div class="result-row-left">
-          <span class="result-row-icon">🪞</span>
+          <span class="result-row-icon">📷</span>
           <span class="result-row-label">Condition Photos</span>
         </div>
         <span class="result-tag pass" id="final-photos">PASS</span>
@@ -2469,7 +2454,7 @@ function renderStage1Results() {
 }
 
 function finishStage1() {
-  nxShowBanner('Session saved. Return to this link within 72 hours to complete the assessment.', 'info');
+  nxShowBanner('Saved — your progress is kept for 72 hours. Reopen this same link on any phone to finish the condition photos.', 'info');
   // Disable the Stage 1 action buttons so it's clear the action was taken
   const btnGroup = document.querySelector('#screen-4 .btn-group');
   if (btnGroup) {
