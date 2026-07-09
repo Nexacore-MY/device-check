@@ -247,11 +247,13 @@ Analyze this image and respond with ONLY valid JSON in this exact structure (no 
 
 Critical guidance:
 ${locationGuidance}
-- This is for INSURANCE ENROLMENT. Missing pre-existing damage costs the insurer money. Prefer false-positive over false-negative for ANY damage detection.
+- This is for INSURANCE ENROLMENT. Missing a genuine CRACK or structural damage costs the insurer money, so for CRACKS and structural damage prefer false-positive over false-negative. But do NOT over-report cosmetic scratches or dents — a false scratch/dent wrongly rejects a good phone.
 - CRACKS: any visible line, fracture, or break in the glass surface — even a single hairline — must be reported as a crack (screen_crack or back_glass_crack), NOT as a scratch. If unsure between crack and scratch, classify as crack with medium confidence.
 - A reflection on glass is NOT a crack. Cracks have actual line patterns through the glass surface, often originating from an impact point.
 - The screen may be DISPLAYING a wallpaper, photo, or app — content WITHIN the displayed image (lines, edges, tree branches, text) and reflections/glare on the glass are NOT cracks. A real crack is a fracture IN the glass with an impact origin, independent of what is on screen.
 - SCRATCHES are surface marks that don't penetrate the glass — they show no spider pattern or impact origin.
+- FINGERPRINTS, smudges, dust, lint, water spots, oily marks from handling, REFLECTIONS, glare, and lighting or colour variation on a glossy/matte surface are NOT damage — never report them as a scratch or a dent. Report a "scratch" ONLY for a clear physical abrasion line in the surface, and a "dent" ONLY for a genuine deformation of the device body (a visibly pushed-in edge or corner) — not for a reflection, shadow, or smudge.
+- Matte and glossy phone backs (e.g. Samsung Galaxy, iPhone) reflect light and pick up fingerprints from handling; these look like marks but are NOT damage. If the device looks clean or only has smudges / fingerprints / reflections, return an EMPTY "damage" array and a high condition_score.
 - "phone_case_visible": Default to FALSE. Only set TRUE if you are highly confident a protective case is fitted. Specific things that are NOT a case (return FALSE for these):
   • A hand, fingers, or palm wrapping around the device — that's the user holding their phone, not a case.
   • The phone's own back panel finish — modern iPhones (15 Pro / 16 Pro / 17 Pro) have titanium frames and matte/textured glass backs that can look distinct from the screen side.
@@ -375,14 +377,15 @@ function evaluatePhotoAnalysis(
       user_message: "Please open your phone fully (unfold it) before taking the photo.",
     };
   }
-  // Damage rejection — for ADP we prefer false-positive over false-negative.
-  // Reject any cracks/structural damage with medium-or-better confidence,
-  // OR any high-confidence damage of any severity.
+  // Damage rejection.
   const rejectableDamage = (analysis.damage || []).find((d) => {
+    // Only genuine CRACKS / structural damage fail eligibility. Cosmetic scratches and dents are
+    // normal wear on used phones and do NOT fail — the sharp second-phone photos surface far more
+    // of this wear than the old mirror selfies did, so failing on it would reject most good phones.
+    // (ADP insures against FUTURE accidental damage, not existing cosmetic wear.) Melanie can dial
+    // this stricter later; the demo default is lenient so the rejection rate stays low.
     const isCriticalType = d.type === "screen_crack" || d.type === "back_glass_crack" || d.type === "structural_damage";
-    if (isCriticalType && d.confidence !== "low") return true;  // catches any crack with med+ confidence
-    if (d.confidence === "high" && d.severity !== "minor") return true;  // catches high-conf scratches/dents too
-    return false;
+    return isCriticalType && d.confidence !== "low";  // med+ confidence crack / structural only
   });
   if (rejectableDamage) {
     return {
