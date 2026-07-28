@@ -522,7 +522,11 @@
 const DEFAULT_CONFIG = {
   SUPABASE_URL: 'https://rysbsztwxjwndwebguuj.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_Ca2iyY__GqNRUw2tYweqXg_Qz6DAzpi',
-  CHECK_URL_BASE: 'https://nexacore-my.github.io/device-check/',
+  // The live customer app: the aia-qr-demo build on Vercel, served via the custom
+  // domain. NOT nexacore-my.github.io — that Pages copy is the old pre-QR build
+  // (mirror flow, no QR hand-off, no TAC make/model), so links minted against it
+  // open the wrong product in front of a customer.
+  CHECK_URL_BASE: 'https://demo.nexcheck.io/',
   DEMO_PARTNER_SLUG: 'nexacore-demo'
 };
 
