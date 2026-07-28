@@ -192,6 +192,54 @@ function extractImei(ocrText: string): { imei: string | null; valid: boolean } {
 }
 
 // ============================================================
+// TAC (Type Allocation Code) — make/model from the first 8 IMEI digits
+// ============================================================
+// The screen-dimension map on the client can only narrow an iPhone to a RANGE
+// ("iPhone 17 Pro Max / 16 Pro Max") because Apple strips the model from the
+// user-agent. The TAC names the exact device. Catalogue: tac_catalogue table,
+// sourced from github.com/MoazEb/tac-database (MIT).
+
+// The catalogue splits Xiaomi's and vivo's sub-brands out; the client's user-agent
+// sniffing does not. Compare families, not literal strings, so a Redmi reading
+// "Xiaomi" from the UA is not mistaken for a contradiction.
+const BRAND_FAMILY: Record<string, string> = {
+  REDMI: "XIAOMI", POCO: "XIAOMI", MITU: "XIAOMI", IQOO: "VIVO",
+};
+
+// The only brands identifyDevice() can actually assert. Anything else it reports
+// ("Android", "Unknown") carries no brand claim, so it cannot contradict the catalogue.
+const CLIENT_KNOWN_BRANDS = new Set([
+  "APPLE", "SAMSUNG", "HUAWEI", "XIAOMI", "OPPO", "VIVO", "REALME", "ONEPLUS", "HONOR",
+]);
+
+function brandFamily(s: string | null | undefined): string {
+  const u = (s ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+  return BRAND_FAMILY[u] ?? u;
+}
+
+// Confidence gates the DISPLAY, never the verdict. 'high' means three things held at
+// once: the catalogue named a model, the IMEI's own check digit says the digits we
+// OCR'd are self-consistent, and nothing we already know about the device contradicts
+// it. Luhn is the load-bearing one — without it a single misread digit lands on a real
+// catalogue TAC 45.7% of the time, naming a DIFFERENT model in 13.9% of all cases.
+// Anything short of all three is 'low', and the client keeps the honest screen-size range.
+function tacConfidence(
+  model: string | null,
+  imeiValid: boolean,
+  catalogueBrand: string | null,
+  clientBrand: string | null,
+): { confidence: "high" | "low"; reason: string } {
+  if (!model) return { confidence: "low", reason: "brand_only" };
+  if (!imeiValid) return { confidence: "low", reason: "imei_checksum_failed" };
+  const cat = brandFamily(catalogueBrand);
+  const cli = brandFamily(clientBrand);
+  if (cli && CLIENT_KNOWN_BRANDS.has(cli) && cat && cat !== cli) {
+    return { confidence: "low", reason: "brand_conflict" };
+  }
+  return { confidence: "high", reason: "ok" };
+}
+
+// ============================================================
 // Photo analysis — Gemini (default) or Claude
 // ============================================================
 type PhotoAnalysis = {
@@ -434,7 +482,7 @@ Deno.serve(async (req) => {
     // Validate session
     const { data: session, error: sessionErr } = await supabase
       .from("sessions")
-      .select("id, partner_id, expires_at, status")
+      .select("id, partner_id, expires_at, status, device_brand")
       .eq("token", sessionToken)
       .single();
     if (sessionErr || !session) return json({ error: "Session not found" }, 401);
@@ -515,7 +563,8 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      // Record success
+      // Record success. This commits FIRST — the TAC lookup below is advisory and must
+      // never sit between OCR success and the customer's IMEI being persisted.
       const { error: dbErr } = await supabase.from("sessions").update({
         imei_screenshot_path: path,
         imei_extracted: extractedImei,
@@ -523,17 +572,67 @@ Deno.serve(async (req) => {
       }).eq("id", session.id);
       if (dbErr) throw new Error(`DB update failed: ${dbErr.message}`);
 
+      // ===== TAC lookup — ADVISORY ONLY =====
+      // Every failure path here is a shrug: a miss, a missing table, a DB blip or a hang
+      // must never cost the customer their upload. Worst case tac_confidence stays 'low'
+      // and the client shows the range it shows today. Runs AFTER the commit above, and
+      // under a 2s deadline so a stalled PostgREST connection can't hold the invocation.
+      let tacBrand: string | null = null;
+      let tacModel: string | null = null;
+      let tacConf = "low";
+      let tacReason = "tac_not_found";
+      try {
+        const { data: tacRow, error: tacErr } = await supabase
+          .from("tac_catalogue")
+          .select("brand, model")
+          .eq("tac", extractedImei.slice(0, 8))
+          .abortSignal(AbortSignal.timeout(2000))
+          .maybeSingle();
+        if (tacErr) {
+          tacReason = "lookup_error";
+          console.error("TAC lookup error:", tacErr.message);
+        } else if (tacRow) {
+          tacBrand = tacRow.brand;
+          tacModel = tacRow.model;   // null when the row names a brand but no model
+          const c = tacConfidence(
+            tacRow.model, imeiValid, tacRow.brand, session.device_brand,
+          );
+          tacConf = c.confidence;
+          tacReason = c.reason;
+        }
+      } catch (e) {
+        tacReason = "lookup_error";
+        console.error("TAC lookup failed:", e instanceof Error ? e.message : e);
+      }
+
+      // Advisory columns, written separately and deliberately NOT thrown on — so this
+      // whole feature can be deployed before or after the migration in either order.
+      const { error: tacDbErr } = await supabase.from("sessions").update({
+        tac_brand: tacBrand,
+        tac_model: tacModel,
+        tac_confidence: tacConf,
+        tac_reason: tacReason,
+      }).eq("id", session.id);
+      if (tacDbErr) console.error("TAC column update failed (advisory, ignored):", tacDbErr.message);
+
       await supabase.from("audit_log").insert({
         session_id: session.id,
         partner_id: session.partner_id,
         event_type: "imei_uploaded",
         actor_type: "customer",
-        event_data: { size: file.size, path, ocr_valid: imeiValid },
+        event_data: {
+          size: file.size, path, ocr_valid: imeiValid,
+          tac: extractedImei.slice(0, 8), tac_model: tacModel,
+          tac_confidence: tacConf, tac_reason: tacReason,
+        },
         ip_address: ip,
         user_agent: userAgent,
       });
 
-      return json({ success: true, path, imei: extractedImei, imei_valid: imeiValid });
+      return json({
+        success: true, path, imei: extractedImei, imei_valid: imeiValid,
+        tac_brand: tacBrand, tac_model: tacModel, tac_confidence: tacConf,
+      });
     }
 
     // ===== Photo path (screen | back) =====

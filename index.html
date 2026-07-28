@@ -1630,6 +1630,7 @@ const report = {
   device: {
     detected: { brand: '', model: '', specs: {} },
     confirmed: { brand: '', model: '' },
+    tac: { brand: '', model: '', confidence: 'low' },  // from the IMEI upload response
     mismatch: false,
     fingerprint: ''
   },
@@ -1832,6 +1833,23 @@ function identifyDevice(fp) {
 function extractAndroidModel(ua) {
   const match = ua.match(/;\s*([^;)]+)\s*Build\//);
   return match ? match[1].trim() : 'Unknown Model';
+}
+
+// The screen-dimension map above can only narrow an iPhone to a RANGE — Apple strips the
+// model from the user-agent, which is why identifyDevice returns "iPhone 17 Pro Max /
+// 16 Pro Max". The server's TAC lookup names the exact model. Prefer it ONLY when the
+// server says confidence is high: a wrong exact model on an insurance enrolment record is
+// worse than an honest range. tac.model already includes the make, so it stands alone.
+function nxDeviceLabel() {
+  const t = report.device.tac;
+  if (t && t.confidence === 'high' && t.model) {
+    // 99% of catalogue models already lead with the make ("Samsung Galaxy S26 Ultra").
+    // The 1% that don't (e.g. Sony / "Docomo Xperia Arc") would otherwise lose the brand.
+    const b = (t.brand || '').trim();
+    return b && !t.model.toUpperCase().startsWith(b.toUpperCase()) ? `${b} ${t.model}` : t.model;
+  }
+  const d = report.device.detected;
+  return `${d.brand || ''} ${d.model || ''}`.trim();
 }
 
 // ===================== DIAGNOSTICS =====================
@@ -2312,9 +2330,17 @@ async function handleIMEIScreenshot(event) {
       if (result && result.imei) {
         report.imei.extracted = result.imei;
         report.imei.valid = result.imei_valid;
+        // Rides into full_report via the deep clone, which is how the QR hand-off phone
+        // recovers the enrolled device's model in stage 2.
+        report.device.tac = {
+          brand: result.tac_brand || '',
+          model: result.tac_model || '',
+          confidence: result.tac_confidence || 'low'
+        };
         statusLine.style.background = result.imei_valid ? '#D1FAE5' : '#FEF3C7';
         statusLine.style.color = result.imei_valid ? 'var(--success)' : 'var(--warning)';
-        statusLine.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`;
+        statusLine.textContent = `IMEI detected: ${result.imei}${result.imei_valid ? ' ✓' : ' (unverified)'}`
+          + (result.tac_confidence === 'high' && result.tac_model ? ` · ${result.tac_model}` : '');
         nxShowBanner(`IMEI detected: ${result.imei}`, 'info');
         if (btnNext) btnNext.disabled = false;
       }
@@ -2439,7 +2465,7 @@ function renderStage1Results() {
   document.getElementById('timestamp').textContent =
     `Stage 1 completed ${now.toLocaleDateString('en-MY')} at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}`;
 
-  const dev = `${report.device.detected.brand} ${report.device.detected.model}`;
+  const dev = nxDeviceLabel();
   const resultDeviceEl = document.getElementById('resultDeviceInfo');
   resultDeviceEl.textContent = dev;
   resultDeviceEl.appendChild(document.createElement('br'));
@@ -2704,7 +2730,7 @@ async function submitStage2() {
     document.getElementById('finalTimestamp').textContent =
       `Completed ${now.toLocaleDateString('en-MY')} at ${now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}`;
 
-    const dev = `${report.device.detected.brand} ${report.device.detected.model}`;
+    const dev = nxDeviceLabel();
     const finalDeviceEl = document.getElementById('finalDeviceInfo');
     finalDeviceEl.textContent = dev;
     finalDeviceEl.appendChild(document.createElement('br'));
@@ -2982,6 +3008,14 @@ function nxRehydrateReport() {
   if (!report.device.detected.brand) report.device.detected.brand = NX.session.device_brand || '';
   if (!report.device.detected.model) report.device.detected.model = NX.session.device_model || '';
   if (!report.device.fingerprint) report.device.fingerprint = NX.session.device_fingerprint || '';
+  // Stage 2 on a SECOND phone (QR hand-off) must show the ENROLLED phone's model.
+  if (!report.device.tac || !report.device.tac.model) {
+    report.device.tac = {
+      brand: NX.session.tac_brand || '',
+      model: NX.session.tac_model || '',
+      confidence: NX.session.tac_confidence || 'low'
+    };
+  }
   if (!report.stage1Result) report.stage1Result = NX.session.stage1_result || 'fail';
   if (!report.id) report.id = 'NC-' + NX.token.slice(0, 6).toUpperCase();
 }

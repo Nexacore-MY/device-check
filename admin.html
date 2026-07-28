@@ -866,8 +866,14 @@ function renderDetailBody(data, sessionToken) {
   const photos = data.photos || [];
   const audit = data.audit_log || [];
 
+  // Prefer the IMEI-derived model over the screen-size guess — the guess can only give a
+  // range ("iPhone 17 Pro Max / 16 Pro Max"). Only when the server marked it high-confidence.
+  const tacLabel = (s.tac_confidence === 'high' && s.tac_model)
+    ? (s.tac_brand && !String(s.tac_model).toUpperCase().startsWith(String(s.tac_brand).toUpperCase())
+        ? `${s.tac_brand} ${s.tac_model}` : s.tac_model)
+    : null;
   document.getElementById('detailTitle').textContent =
-    `${s.device_brand || 'Unknown'} ${s.device_model || ''}`.trim();
+    tacLabel || `${s.device_brand || 'Unknown'} ${s.device_model || ''}`.trim();
   document.getElementById('detailSubtitle').textContent =
     `${partner.name || 'Partner'} · ${s.status || 'unknown'} · ${sessionToken.slice(0,12)}…`;
 
@@ -901,6 +907,9 @@ function renderDetailBody(data, sessionToken) {
       <div class="detail-kv">
         <span class="k">Brand</span><span class="v">${fmt(s.device_brand)}</span>
         <span class="k">Model</span><span class="v">${fmt(s.device_model)}</span>
+        <span class="k">Model (from IMEI)</span><span class="v">${
+          tacLabel ? escapeHtml(tacLabel) : `<span class="detail-empty">— (${escapeHtml(s.tac_reason || 'not looked up')})</span>`
+        }</span>
         <span class="k">Fingerprint</span><span class="v mono">${fmt(s.device_fingerprint)}</span>
         <span class="k">Platform</span><span class="v">${fmt(specs.platform)}</span>
         <span class="k">Screen</span><span class="v">${specs.screenWidth || '?'}×${specs.screenHeight || '?'} @${specs.devicePixelRatio || '?'}x</span>
