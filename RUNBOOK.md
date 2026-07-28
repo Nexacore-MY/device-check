@@ -53,16 +53,34 @@ You should now be able to:
 
 ## 2. The two HTML files
 
-There is no build step. Both files are hand-edited HTML/CSS/JS, deployed by pushing to `main`.
+There is no build step. Both files are hand-edited HTML/CSS/JS.
 
 | File | What it is |
 |---|---|
-| `index.html` | Customer flow. Single page, 8 screens controlled by `goToStep(n)`. ~2,800 lines (CSS + JS inline). |
-| `admin.html` | Partner dashboard. Token-gated, lists sessions, click-through detail. ~1,000 lines. |
+| `index.html` | Customer flow. Single page, 9 screens controlled by `goToStep(n)`. 3,023 lines (CSS + JS inline). |
+| `admin.html` | Partner dashboard. Token-gated, lists sessions, click-through detail. 1,028 lines. |
 
 **Local preview:** open the file directly. Both will run in preview mode without a session token. To test against a real session, append `#s=<token>` to the URL.
 
-**Deploy:** `git push origin main`. GitHub Pages picks it up in ~30s. There is no staging environment yet.
+### ⚠️ Deploy — read this before you push
+
+The live demo is **Vercel**, served at **`demo.nexcheck.io`**, built from branch **`aia-qr-demo`**:
+
+```bash
+git checkout aia-qr-demo   # the live branch — NOT main
+vercel --prod              # uploads the working dir; .vercelignore keeps secrets/backend out
+```
+
+**`git push origin main` does not deploy the live demo, and shipping `main` is actively harmful.**
+`main` is the **old pre-QR build**: mirror photo flow still present, no QR hand-off to a second
+phone, no TAC make/model. GitHub Pages (`nexacore-my.github.io/device-check`) still serves that
+old build from `main` — putting it in front of an insurance prospect shows the wrong product.
+
+`.vercelignore` deliberately excludes `admin.html`, the `.ts` edge functions, `*.sql` and `*.md`
+from the upload — the Vercel deploy is the **customer app only**. The admin dashboard is not
+published; open `admin.html` locally (§1).
+
+There is no staging environment yet.
 
 ---
 
@@ -72,7 +90,7 @@ Both live in the repo root as `.ts` files but are deployed to Supabase. There is
 
 | File | Deployed name | Purpose |
 |---|---|---|
-| `edge-function-upload-and-process.ts` | `smart-handler` | Receives IMEI screenshots and Stage 2 photos. Runs Vision OCR for IMEI, Gemini photo analysis for damage detection, applies rejection rules, writes to storage + DB + audit log. |
+| `edge-function-upload-and-process.ts` | `smart-handler` | Receives IMEI screenshots and Stage 2 photos. Runs Vision OCR for IMEI, the TAC make/model lookup (advisory, §4.1), Gemini photo analysis for damage detection, applies rejection rules, writes to storage + DB + audit log. |
 | `edge-function-admin-detail.ts` | `admin-detail` | Returns one session + signed Storage URLs (15-min expiry) for the admin dashboard detail view. |
 
 ### Deploying via Supabase Dashboard (current workflow)
@@ -112,9 +130,12 @@ Test that secrets are set with `supabase secrets list`.
 | File | Use |
 |---|---|
 | `schema.sql` | Phase 1 baseline (tables, indexes, RLS enable) |
-| `schema-fix-01.sql` … `schema-fix-12.sql` | Migrations layered in order |
+| `schema-fix-01.sql` … `schema-fix-16.sql` | Migrations layered in order. 17 files with `schema.sql`; there is no plain `08` — it is `08-diag`. |
 
 `schema_migrations` table tracks applied versions (created in `schema-fix-02.sql`).
+
+Tables: `partners`, `sessions`, `diagnostics`, `photos`, `webhook_deliveries`, `audit_log`,
+`schema_migrations`, `rate_limits`, `rate_limits_text`, `tac_catalogue`.
 
 **Run order on a fresh DB:**
 
@@ -123,9 +144,48 @@ psql "$DATABASE_URL" -f schema.sql
 for f in schema-fix-*.sql; do psql "$DATABASE_URL" -f "$f"; done
 ```
 
-⚠️ `schema-fix-08-diag.sql` is a temporary diagnostic — skip on a fresh setup. The consolidation work in `CLEANUP-AUDIT.md` §1.2 (a half-day task) collapses all this into one baseline file.
+⚠️ **These files alone do NOT give you a working DB.** Two gaps:
+
+- **`schema-fix-16.sql` creates the `tac_catalogue` table and loads ZERO rows.** The 93,042-row
+  data load is deliberately out-of-band (§4.1). A fresh DB built from the files above has an
+  **empty catalogue**: every TAC lookup misses, **nothing errors**, no log line fires, and the
+  make/model feature silently does nothing forever — the flow just keeps showing the screen-size
+  range. Load the data before you test, and verify with a row count.
+- `schema-fix-08-diag.sql` is a temporary diagnostic (its own header calls it a "temporary
+  wide-open policy") — skip it on a fresh setup.
+
+The consolidation work in `CLEANUP-AUDIT.md` §1.2 (a half-day task) collapses all this into one baseline file.
 
 **Schema browser:** Supabase Dashboard → Table Editor.
+
+### 4.1 Loading / refreshing the TAC catalogue
+
+`tac_catalogue` maps the first 8 digits of the IMEI — the Type Allocation Code — to a make and
+model, so the enrolment record carries the exact device instead of the client's screen-size guess.
+**Advisory only: it is never an input to pass/fail.**
+
+Source: **`github.com/MoazEb/tac-database`** — **MIT licence**, snapshot **2026-07-23**. Keep the
+attribution with the data.
+
+Only the rows that actually name a model are loaded: **93,042**. The ~161k brand-only rows behave
+identically to a miss (both fall back to the screen-size range), so they buy nothing and cost load
+time.
+
+To refresh from upstream:
+
+1. Pull the current CSV from the upstream repo.
+2. Filter to model-bearing rows, keep `tac,brand,model`, and zero-pad the TAC to 8 characters —
+   leading zeros are significant, the column is `char(8)`, not a number.
+3. Load it, either way (both are re-runnable):
+   - `\copy` the CSV into a staging table, then
+     `insert into tac_catalogue ... on conflict (tac) do nothing;`
+   - or paste `insert into tac_catalogue (tac,brand,model) values (...) on conflict (tac) do nothing;`
+     chunks into the SQL Editor. The original load was 5 chunks.
+4. Re-run the placeholder demotion at the foot of `schema-fix-16.sql`:
+   `update tac_catalogue set model = null where model = brand || ' Unknown';`
+   (68 defunct-brand rows that would otherwise render as "Suncorp Unknown" on a record.)
+5. Verify: `select count(*) from tac_catalogue;` should be ~93k, and the TAC of a phone you have
+   to hand should resolve. A silent miss is indistinguishable from a missing load — check the count.
 
 ### Applying a new migration to production
 
@@ -141,9 +201,9 @@ There is no automatic apply step. Production DB changes are still manual paste-a
 ## 5. Everyday workflow
 
 ### To change the customer flow
-1. Edit `index.html`
+1. Edit `index.html` on `aia-qr-demo`
 2. Open the file locally to smoke-test (`#s=<a real token>` to test against a live session)
-3. `git commit && git push` — GitHub Pages updates automatically
+3. `git commit`, then `vercel --prod` (§2). **Committing/pushing does not deploy anything.**
 
 ### To change an edge function
 1. Edit `edge-function-*.ts`
@@ -170,7 +230,9 @@ The codebase is pilot-ready but messy. `CLEANUP-AUDIT.md` is the full punch list
 
 1. **Read** `PROTOTYPE-STATUS.md` and this runbook.
 2. **Set up the Supabase CLI workflow** so edge function deploys go through `supabase functions deploy` instead of dashboard paste.
-3. **Do task #47** (UA-CH device detection) — 30 min, visible win, low-risk first commit.
+3. **Do task #47** (UA-CH device detection) — 30 min, low-risk first commit. Partly superseded by
+   the TAC lookup (which now names the exact model when the IMEI resolves), but still the fallback
+   whenever the TAC misses or is low-confidence. See `CLEANUP-AUDIT.md` §3.
 4. **§1.2 schema consolidation** — half day. Establishes the migrations folder pattern.
 5. **§2.3 + §2.4** — extract `_shared/` and split `smart-handler` into focused modules. Half day. Unblocks unit tests.
 6. **§5 unit tests** for `rejection-rules` and `extractImei` — covers the regression cases we've already hit.
@@ -183,11 +245,19 @@ The codebase is pilot-ready but messy. `CLEANUP-AUDIT.md` is the full punch list
 
 | Surface | URL |
 |---|---|
-| Customer flow | `https://nexacore-my.github.io/device-check/#s=<token>` |
-| Admin dashboard | `https://nexacore-my.github.io/device-check/admin.html` |
+| **Customer flow (live)** | `https://demo.nexcheck.io/#s=<token>` — Vercel, branch `aia-qr-demo` |
+| Admin dashboard | Not published. Open `admin.html` locally (excluded via `.vercelignore`). |
 | Supabase project | `https://rysbsztwxjwndwebguuj.supabase.co` |
 | smart-handler endpoint | `https://rysbsztwxjwndwebguuj.supabase.co/functions/v1/smart-handler` |
 | admin-detail endpoint | `https://rysbsztwxjwndwebguuj.supabase.co/functions/v1/admin-detail` |
+
+⚠️ **`https://nexacore-my.github.io/device-check/` (and `/admin.html`) is GitHub Pages serving
+branch `main` — the old pre-QR build.** It is not the live demo. Never send it to a prospect.
+
+⚠️ **The admin dashboard still mints links against that old base.** `admin.html:525` hardcodes
+`CHECK_URL_BASE: 'https://nexacore-my.github.io/device-check/'` and line 626 builds the customer
+link from it, so a session created in the dashboard points at the stale build. Until that constant
+is changed to `https://demo.nexcheck.io/`, **swap the host by hand before sending any demo link.**
 
 ---
 
