@@ -534,6 +534,26 @@ const DEFAULT_CONFIG = {
 const localCfg = window.NEXACORE_ADMIN_CONFIG || {};
 const cfg = { ...DEFAULT_CONFIG, ...localCfg };
 
+// ===== Device label =====
+// The client can only guess the model from screen dimensions, so it reports a RANGE
+// ("iPhone 17 Pro Max / 16 Pro Max") and sometimes gets it outright wrong (one device
+// reported "iPhone 13 Mini / 12 Mini / X / XS" is actually an iPhone 11 Pro). The TAC
+// lookup names the exact device from the IMEI. Prefer it ONLY at high confidence — a
+// wrong exact model on an enrolment record is worse than an honest range.
+// Returns the exact TAC label, else the client's guess, else '—'.
+function nxTacLabel(s) {
+  if (!s || s.tac_confidence !== 'high' || !s.tac_model) return null;
+  const b = String(s.tac_brand || '').trim();
+  const m = String(s.tac_model);
+  return b && !m.toUpperCase().startsWith(b.toUpperCase()) ? `${b} ${m}` : m;
+}
+function nxSessionDeviceLabel(s) {
+  const tac = nxTacLabel(s);
+  if (tac) return tac;
+  const guess = `${(s && s.device_brand) || ''} ${(s && s.device_model) || ''}`.trim();
+  return guess || '—';
+}
+
 // Admin token: prefer admin-config.js, then sessionStorage, else prompt
 let adminToken = (localCfg && localCfg.ADMIN_TOKEN && localCfg.ADMIN_TOKEN !== 'PASTE_ADMIN_TOKEN_HERE')
   ? localCfg.ADMIN_TOKEN
@@ -749,7 +769,11 @@ function applyFilters() {
   }
 
   const rows = filtered.map(s => {
-    const device = (s.device_brand || s.device_model) ? `${s.device_brand || ''} ${s.device_model || ''}`.trim() : '—';
+    // Prefer the IMEI-derived model over the screen-size guess, which can only ever
+    // give a range ("iPhone 17 Pro Max / 16 Pro Max") and is sometimes outright wrong.
+    // Requires admin_list_sessions to return tac_* (schema-fix-16); falls back cleanly
+    // to the guess against an older RPC.
+    const device = nxSessionDeviceLabel(s);
     const policy = s.policy_ref || '—';
     const result = s.overall_result || s.stage1_result || '—';
     const resultClass = result === 'pass' ? 'result-pass' : result === 'fail' ? 'result-fail' : '';
@@ -870,14 +894,8 @@ function renderDetailBody(data, sessionToken) {
   const photos = data.photos || [];
   const audit = data.audit_log || [];
 
-  // Prefer the IMEI-derived model over the screen-size guess — the guess can only give a
-  // range ("iPhone 17 Pro Max / 16 Pro Max"). Only when the server marked it high-confidence.
-  const tacLabel = (s.tac_confidence === 'high' && s.tac_model)
-    ? (s.tac_brand && !String(s.tac_model).toUpperCase().startsWith(String(s.tac_brand).toUpperCase())
-        ? `${s.tac_brand} ${s.tac_model}` : s.tac_model)
-    : null;
-  document.getElementById('detailTitle').textContent =
-    tacLabel || `${s.device_brand || 'Unknown'} ${s.device_model || ''}`.trim();
+  const tacLabel = nxTacLabel(s);
+  document.getElementById('detailTitle').textContent = nxSessionDeviceLabel(s);
   document.getElementById('detailSubtitle').textContent =
     `${partner.name || 'Partner'} · ${s.status || 'unknown'} · ${sessionToken.slice(0,12)}…`;
 
