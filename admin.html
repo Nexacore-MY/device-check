@@ -702,7 +702,12 @@ function updateStats() {
   // Top device by brand
   const brandCounts = {};
   all.forEach(s => {
-    const b = s.device_brand || 'Unknown';
+    // Prefer the IMEI-derived brand — the user-agent gives nothing on most Android
+    // handsets. Sessions that never reached the diagnostics step have no device at
+    // all; counting those as "Unknown" made this card read "Unknown" permanently,
+    // since most sessions are minted-but-unused links.
+    const b = (s.tac_confidence === 'high' && s.tac_brand) || s.device_brand;
+    if (!b) return;
     brandCounts[b] = (brandCounts[b] || 0) + 1;
   });
   const top = Object.entries(brandCounts).sort((a,b) => b[1]-a[1])[0];
