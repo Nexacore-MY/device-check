@@ -1062,15 +1062,10 @@ function renderDetailBody(data, sessionToken) {
     overviewHtml + deviceHtml + diagHtml + photoHtml + auditHtml + rawHtml;
 }
 
-// Auto-refresh sessions every 10 seconds, silently — so a live demo updates itself without
-// the table flashing. Pauses while a detail panel is open or the user is typing a search.
-setInterval(() => {
-  if (!sb) return;
-  const detailOpen = document.getElementById('detailPanel')?.classList.contains('open');
-  const typing = document.activeElement === document.getElementById('filterSearch');
-  if (detailOpen || typing) return;
-  loadSessions(true);
-}, 10000);
+// No auto-refresh. The list updates when you click Refresh, and not otherwise — a timer
+// re-rendering the table under you while you are reading a row is worse than a click, and
+// it also meant an idle open tab hitting the database ~360 times an hour for nothing.
+// loadSessions() keeps its silent parameter for any caller that wants a quiet reload.
 </script>
 </body>
 </html>
