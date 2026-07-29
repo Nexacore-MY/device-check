@@ -41,3 +41,5 @@ Thumbs.db
 *.swo
 *.bak
 .vercel
+scripts/.tac-work/
+scripts/tac-sql/
