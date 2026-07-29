@@ -423,7 +423,7 @@
   <div class="stats-grid" id="statsGrid">
     <div class="stat-card"><div class="stat-label">Sessions today</div><div class="stat-value" id="statToday">—</div><div class="stat-sub" id="statTodaySub"></div></div>
     <div class="stat-card"><div class="stat-label">Pass rate</div><div class="stat-value" id="statPassRate">—</div><div class="stat-sub" id="statPassRateSub"></div></div>
-    <div class="stat-card"><div class="stat-label">In progress</div><div class="stat-value" id="statInProgress">—</div><div class="stat-sub">currently being run</div></div>
+    <div class="stat-card"><div class="stat-label">In progress</div><div class="stat-value" id="statInProgress">—</div><div class="stat-sub" id="statInProgressSub">currently being run</div></div>
     <div class="stat-card"><div class="stat-label">Top device</div><div class="stat-value" id="statTopDevice" style="font-size:14px;line-height:1.3">—</div><div class="stat-sub" id="statTopDeviceSub"></div></div>
   </div>
 
@@ -697,7 +697,11 @@ function updateStats() {
   const completed = all.filter(s => s.overall_result === 'pass' || s.overall_result === 'fail');
   const passed = completed.filter(s => s.overall_result === 'pass').length;
   const passRate = completed.length ? Math.round(100 * passed / completed.length) : null;
-  const inProgress = all.filter(s => s.status === 'stage1_in_progress' || s.status === 'stage2_in_progress' || s.status === 'created').length;
+  // 'created' is a minted link nobody has opened yet — counting those as "currently
+  // being run" made this read 85 when the real number was 0, which is the same class
+  // of bug as the Top Device card counting unused links as Unknown devices.
+  const inProgress = all.filter(s => s.status === 'stage1_in_progress' || s.status === 'stage2_in_progress').length;
+  const notStarted = all.filter(s => s.status === 'created').length;
 
   // Top device by brand
   const brandCounts = {};
@@ -719,6 +723,8 @@ function updateStats() {
   passEl.className = 'stat-value ' + (passRate === null ? '' : passRate >= 80 ? 'success' : passRate >= 50 ? '' : 'danger');
   document.getElementById('statPassRateSub').textContent = completed.length ? `${passed}/${completed.length} completed` : 'no completions';
   document.getElementById('statInProgress').textContent = inProgress;
+  document.getElementById('statInProgressSub').textContent =
+    notStarted ? `currently being run · ${notStarted} link${notStarted===1?'':'s'} unopened` : 'currently being run';
   if (top) {
     document.getElementById('statTopDevice').textContent = top[0];
     document.getElementById('statTopDeviceSub').textContent = `${top[1]} session${top[1]===1?'':'s'}`;
@@ -749,6 +755,11 @@ function applyFilters() {
       (s.token || '').toLowerCase().includes(searchTerm) ||
       (s.device_brand || '').toLowerCase().includes(searchTerm) ||
       (s.device_model || '').toLowerCase().includes(searchTerm) ||
+      // Search what is actually ON SCREEN. The Device column shows the IMEI-derived
+      // model, so without these two a search for "Samsung" returned nothing while
+      // Samsung rows were visibly listed.
+      (s.tac_brand || '').toLowerCase().includes(searchTerm) ||
+      (s.tac_model || '').toLowerCase().includes(searchTerm) ||
       (s.imei_extracted || '').toLowerCase().includes(searchTerm)
     );
   }
