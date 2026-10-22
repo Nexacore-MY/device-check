@@ -83,20 +83,38 @@
 
   const btn = document.getElementById('startBtn');
   const msg = document.getElementById('msg');
-  const code = new URLSearchParams(location.hash.replace(/^#/, '')).get('c');
+  let busy = false;
+
+  function readCode() {
+    return new URLSearchParams(location.hash.replace(/^#/, '')).get('c');
+  }
 
   function show(text, isError) {
     msg.textContent = text;
     msg.className = isError ? 'msg error' : 'msg';
   }
 
-  if (!code) {
-    btn.disabled = true;
-    show(MESSAGES.no_code, true);
-    return;
+  // Re-read on every hash change, not just at load: opening /start/#c=… in a tab that already
+  // shows /start/ (a re-scan, or a different pass) only changes the fragment and does NOT reload
+  // the page, so a code read once at load would leave the button stuck on "needs a demo link".
+  function render() {
+    if (busy) return;
+    btn.textContent = 'Start demo';
+    if (readCode()) {
+      btn.disabled = false;
+      show('', false);
+    } else {
+      btn.disabled = true;
+      show(MESSAGES.no_code, true);
+    }
   }
+  window.addEventListener('hashchange', render);
+  render();
 
   btn.addEventListener('click', async () => {
+    const code = readCode();
+    if (busy || !code) return;
+    busy = true;
     btn.disabled = true;           // one tap = one session
     btn.textContent = 'Starting…';
     show('', false);
@@ -117,13 +135,15 @@
       }
       const reason = body && body.message;
       if (reason === 'demo_link_invalid' || reason === 'demo_limit_reached') {
+        busy = false;
         show(MESSAGES[reason], true);
         btn.textContent = 'Start demo';
-        return;                    // stays disabled: tapping again will not help
+        return;                    // stays disabled until the code changes: tapping again will not help
       }
       throw new Error('unexpected response ' + resp.status);
     } catch (e) {
       console.error('demo start failed:', e);
+      busy = false;
       show(MESSAGES.network, true);
       btn.disabled = false;
       btn.textContent = 'Start demo';
