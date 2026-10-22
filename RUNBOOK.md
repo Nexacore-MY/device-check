@@ -222,6 +222,23 @@ There is no automatic apply step. Production DB changes are still manual paste-a
 ### To add a new partner (currently)
 SQL insert into `partners` table. There is no UI for this yet. Required fields: `name`, `slug`, `api_key` (generate via `'nx_' || encode(gen_random_bytes(16), 'hex')`), `admin_token` (similarly), `webhook_url`, `webhook_secret`.
 
+### BD demo passes (schema-fix-17)
+A demo pass is one permanent QR code. Scanning it opens `https://demo.nexcheck.io/start/#c=<code>`,
+and each tap on **Start demo** creates a brand-new session under the `nexacore-bd-demo` partner.
+Nobody mints links per demo. Each pass has its own off switch and per-hour/per-day caps.
+
+- **Create a pass:** edit the label in `scripts/demo-pass-new.sql`, then run it in the SQL editor.
+  It prints `qr_url` **once**; only the code's sha256 is stored. Turn `qr_url` into a QR image with
+  any QR generator, and test-scan it on an iPhone and an Android before printing.
+- **Switch off / change limits / list its demos:** the commented queries at the bottom of
+  `scripts/demo-pass-new.sql`. A leaked or lost card means: switch it off, then create a new pass.
+- **BD's results view:** a copy of `admin.html` with its own `admin-config.js` setting
+  `DEMO_PARTNER_SLUG: 'nexacore-bd-demo'` and that partner's `admin_token`
+  (`select admin_token from partners where slug = 'nexacore-bd-demo';`). It shows only BD demos,
+  never the `nexacore-demo` sessions.
+- **Tests:** `scripts/demo-pass-test.sql`. Run it against a throwaway database with every
+  schema file applied, never production (instructions are in the file header).
+
 ---
 
 ## 6. What to do first (engineer's first-week recommendation)
