@@ -1561,6 +1561,12 @@ function nxBlobToDataUrl(blob) {
 // Retry counters per upload kind
 NX.uploadAttempts = { imei: 0, screen: 0, back: 0 };
 NX.MAX_ATTEMPTS = 3;
+// One upload per photo slot at a time, and none once the slot is accepted. PS-AIA7 (2026-08-04)
+// re-uploaded an accepted screen photo three times, twice within one second — every upload is a
+// Gemini call and counts against the session's 10-slot cap, so it nearly locked a live demo.
+NX.photoBusy = { screen: false, back: false };
+NX.photoAccepted = { screen: false, back: false };
+NX.stage2Submitting = false;
 
 // Upload via edge function (handles auth, storage upload, OCR/LLM, DB record).
 // Returns:
@@ -2546,6 +2552,8 @@ async function startStage2() {
 
 // ===================== PHOTO CAPTURE =====================
 function capturePhoto(slot) {
+  if (NX.photoBusy[slot]) { nxShowBanner('Still checking this photo — one moment…', 'info'); return; }
+  if (NX.photoAccepted[slot]) { nxShowBanner(`${slot === 'screen' ? 'Screen' : 'Back'} photo already accepted ✓`, 'info'); return; }
   currentPhotoSlot = slot;
   const input = document.getElementById('photoInput');
   // Screen photo = front camera (user), Back photo = back camera (environment).
@@ -2559,6 +2567,8 @@ async function handlePhoto(event) {
   if (!file || !currentPhotoSlot) return;
   event.target.value = '';
   const slot = currentPhotoSlot;
+  if (NX.photoBusy[slot] || NX.photoAccepted[slot]) return;
+  NX.photoBusy[slot] = true;
 
   const el = document.getElementById(`photo-${slot}`);
 
@@ -2632,6 +2642,7 @@ async function handlePhoto(event) {
           nxShowBanner(`${result.user_message || 'Photo rejected.'}${counter}`, 'error');
         }
       } else {
+        NX.photoAccepted[slot] = true;
         badge.textContent = '✓';
         badge.style.background = 'var(--success)';
         const msg = result && result.analysis_unavailable
@@ -2655,6 +2666,8 @@ async function handlePhoto(event) {
     if (NX.captureMode && hasRequired) submitStage2();
   } catch (e) {
     console.error('Photo processing failed:', e);
+  } finally {
+    NX.photoBusy[slot] = false;
   }
 }
 
@@ -2668,6 +2681,8 @@ async function submitStage2() {
     if (submitBtn) submitBtn.disabled = true;
     return;
   }
+  if (NX.stage2Submitting) return;   // both slots finishing together must not finalise twice
+  NX.stage2Submitting = true;
 
   const submitBtn = document.getElementById('btnPhotoSubmit');
   const submitBtnOriginalText = submitBtn ? submitBtn.textContent : 'Submit';
@@ -2750,6 +2765,7 @@ async function submitStage2() {
     // Anything thrown above (DOM render, missing element, etc.) lands here.
     // Restore the button so the user can retry instead of being stuck on "Submitting…".
     console.error('submitStage2 failed:', e);
+    NX.stage2Submitting = false;   // let the user retry
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = submitBtnOriginalText;
