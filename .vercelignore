@@ -14,3 +14,6 @@ edge-function-upload-and-process.ts
 docs/
 .github/
 .claude/
+
+# Operator scripts (SQL snippets, tests, catalogue tooling) — not part of the public site.
+scripts/
