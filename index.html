@@ -2918,6 +2918,15 @@ function nxRouteByStatus() {
     // OTHER phone — it's a helper device, not the enrolled one.
     if (NX.captureMode) { startStage2(); return; }
     const passed = report.stage1Result === 'pass';
+    if (passed) {
+      // Photos happen on a second phone, so a passed phone-1 that reloads (locking the phone
+      // mid hand-off can do this) goes straight back to the hand-off QR. That also restarts the
+      // verdict poll — landing on the Stage-1 summary instead left phone-1 waiting forever.
+      renderStage1Results();
+      nxShowBanner('Welcome back — Stage 1 passed. Scan this code with your second phone to take the photos.', 'info');
+      nxShowHandoff();
+      return;
+    }
     nxShowBanner(
       passed
         ? 'Welcome back — Stage 1 passed. Continue to Stage 2 to upload condition photos.'
