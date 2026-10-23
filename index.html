@@ -2659,8 +2659,11 @@ async function handlePhoto(event) {
       nxShowBanner('Photo upload failed. Tap to retry.', 'error');
     }
 
-    // Now check if both required photos are uploaded
-    const hasRequired = report.photos.screen && report.photos.back;
+    // Both photos must be ACCEPTED by the server — not merely taken. report.photos[slot] is set
+    // before the upload starts, so it is truthy while the other photo is still being checked; on
+    // 2026-10-23 that submitted with the back photo in flight, the server refused, and the back
+    // came back "remove your case" under an "Assessment Complete" screen.
+    const hasRequired = NX.photoAccepted.screen && NX.photoAccepted.back;
     document.getElementById('btnPhotoSubmit').disabled = !hasRequired;
     // Second phone has no manual Submit step — auto-finalise so it can't strand at stage1_complete.
     if (NX.captureMode && hasRequired) submitStage2();
@@ -2673,8 +2676,8 @@ async function handlePhoto(event) {
 
 // ===================== STAGE 2 SUBMIT =====================
 async function submitStage2() {
-  // Defensive guard — regardless of button state, photos MUST be present
-  if (!report.photos.screen || !report.photos.back) {
+  // Defensive guard — regardless of button state, both photos MUST be accepted
+  if (!NX.photoAccepted.screen || !NX.photoAccepted.back) {
     nxShowBanner('Please successfully upload both screen and back photos before submitting.', 'error');
     // Re-sync button state
     const submitBtn = document.getElementById('btnPhotoSubmit');
@@ -2751,15 +2754,16 @@ async function submitStage2() {
     finalDeviceEl.appendChild(document.createElement('br'));
     finalDeviceEl.appendChild(document.createTextNode('Device Profile: ' + report.device.fingerprint));
 
-    // Persist Stage 2 completion to backend
-    try {
-      await nxCall('session_complete_stage2', {
-        p_token: NX.token,
-        p_result: report.result,
-        p_full_report: nxReportSafe()
-      });
-    } catch (e) { console.error('Failed to persist stage 2:', e); }
+    // Persist Stage 2 completion. The server is the judge (it refuses a pass unless both photos
+    // are accepted), so a refusal must NOT be shown as a result — it falls to the catch below,
+    // which keeps the user on the photo screen with Submit re-enabled to retry.
+    await nxCall('session_complete_stage2', {
+      p_token: NX.token,
+      p_result: report.result,
+      p_full_report: nxReportSafe()
+    });
 
+    nxHideBanner();   // error banners persist until tapped — never leave one under the result
     goToStep(7);
   } catch (e) {
     // Anything thrown above (DOM render, missing element, etc.) lands here.
